@@ -36,3 +36,12 @@ Passo a passo
 1. Clone o repositório:
    ```bash
    git clone [https://github.com/vxwerz/saude_indigena_app.git](https://github.com/vxwerz/saude_indigena_app.git)
+### 📐 Arquitetura do Fluxo Offline-First
+
+```mermaid
+graph TD
+    A[Agente de Saúde / App] -->|1. Salva Dado| B[Banco Local - Hive/Isar]
+    B -->|2. Checa Conexão| C{Tem Internet?}
+    C -->|Sim| D[Sincroniza com Servidor / Nuvem]
+    C -->|Não| E[Mantém Fila Local para Envio Posterior]
+```
