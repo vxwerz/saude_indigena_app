@@ -1,0 +1,12 @@
+lib/
+├── main.dart
+├── models/
+│   ├── agente_funai.dart
+│   ├── atendimento.dart
+│   ├── indigena.dart
+│   └── vacina_aplicada.dart
+├── screens/
+│   ├── home_screen.dart
+│   └── login_screen.dart
+└── services/
+    └── storage_service.dart
