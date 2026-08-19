@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
+import '../main.dart';
+
+// Oculta Indigena e Atendimento do Drift para evitar conflitos de nome com os modelos de dominio
+import '../database/app_database.dart' hide Indigena, Atendimento; 
+
 import '../models/agente_funai.dart';
 import '../models/atendimento.dart';
 import '../models/indigena.dart';
-import '../services/storage_service.dart';
 
 class HomeScreen extends StatefulWidget {
   final AgenteFunai agente;
@@ -33,19 +37,47 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _carregarDados() async {
-    final indigenasCarregados = await StorageService.carregarIndigenas();
-    final atendimentosCarregados = await StorageService.carregarAtendimentos();
+    setState(() => carregando = true);
+    final aldeiaId = aldeias.indexOf(aldeiaSelecionada) + 1;
+
+    final indigenasDoBanco = await database.listarIndigenasPorAldeia(aldeiaId);
+
+    final listaConvertida = indigenasDoBanco.map((i) {
+      return Indigena(
+        id: i.id.toString(),
+        nome: i.nome,
+        cns: i.cns,
+        dataNascimento: i.dataNascimento,
+        aldeiaAtual: aldeiaSelecionada,
+        vacinasTomadas: [],
+      );
+    }).toList();
 
     setState(() {
-      indigenas = indigenasCarregados;
-      atendimentos = atendimentosCarregados;
+      indigenas = listaConvertida;
       carregando = false;
     });
   }
 
-  void _registrarAtendimento(Indigena indigena, String tipo, String obs) {
-    final novo = Atendimento(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
+  Future<void> _registrarAtendimento(Indigena indigena, String tipo, String obs) async {
+    final aldeiaId = aldeias.indexOf(indigena.aldeiaAtual) + 1;
+    final agora = DateTime.now();
+    final String idGeradoStr = agora.millisecondsSinceEpoch.toString();
+
+    // Passa 'id' e 'indigenaId' estritamente como String para alinhar com o Drift
+    await database.into(database.atendimentos).insert(
+      AtendimentosCompanion.insert(
+        id: idGeradoStr,
+        indigenaId: indigena.id,
+        aldeiaId: aldeiaId,
+        tipoAtendimento: tipo,
+        dataHora: agora,
+        observacoes: obs,
+      ),
+    );
+
+    final novoAtendimento = Atendimento(
+      id: idGeradoStr,
       indigenaId: indigena.id,
       nomeIndigena: indigena.nome,
       cnsIndigena: indigena.cns,
@@ -54,13 +86,12 @@ class _HomeScreenState extends State<HomeScreen> {
       idade: indigena.idade,
       faixaEtaria: indigena.faixaEtaria,
       observacoes: obs,
-      dataHora: DateTime.now(),
+      dataHora: agora,
     );
 
     setState(() {
-      atendimentos.add(novo);
+      atendimentos.add(novoAtendimento);
     });
-    StorageService.salvarAtendimentos(atendimentos);
   }
 
   int get atendimentosHoje {
@@ -133,11 +164,14 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         children: [
           DropdownButtonFormField<String>(
-            value: aldeiaSelecionada,
+            initialValue: aldeiaSelecionada,
             decoration: const InputDecoration(labelText: 'Selecione a Aldeia', border: OutlineInputBorder()),
             items: aldeias.map((a) => DropdownMenuItem(value: a, child: Text(a))).toList(),
             onChanged: (val) {
-              if (val != null) setState(() => aldeiaSelecionada = val);
+              if (val != null) {
+                setState(() => aldeiaSelecionada = val);
+                _carregarDados();
+              }
             },
           ),
           const SizedBox(height: 12),
@@ -204,7 +238,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Expanded(
-                      child: Text('Cartão de Vacinas: ${indigena.nome}', 
+                      child: Text(
+                        'Cartão de Vacinas: ${indigena.nome}', 
                         style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -234,106 +269,10 @@ class _HomeScreenState extends State<HomeScreen> {
                           },
                         ),
                 ),
-                const Divider(),
-                const Text('Vacinas Pendentes:', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange)),
-                const SizedBox(height: 8),
-                Expanded(
-                  flex: 1,
-                  child: indigena.vacinasPendentes.isEmpty
-                      ? const Center(child: Text('Esquema vacinal completo!'))
-                      : ListView.builder(
-                          itemCount: indigena.vacinasPendentes.length,
-                          itemBuilder: (context, i) {
-                            final vNome = indigena.vacinasPendentes[i];
-                            return Card(
-                              color: Colors.orange.shade50,
-                              child: ListTile(
-                                leading: const Icon(Icons.pending, color: Colors.orange),
-                                title: Text(vNome),
-                                trailing: ElevatedButton.icon(
-                                  icon: const Icon(Icons.vaccines),
-                                  label: const Text('Aplicar'),
-                                  onPressed: () {
-                                    _aplicarVacinaComLote(indigena, vNome, () {
-                                      setModalState(() {});
-                                      setState(() {});
-                                    });
-                                  },
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                ),
               ],
             ),
           );
         },
-      ),
-    );
-  }
-
-  void _aplicarVacinaComLote(Indigena indigena, String nomeVacina, VoidCallback onAtualizar) {
-    final loteController = TextEditingController();
-    String doseSelecionada = '1ª Dose';
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Aplicar $nomeVacina'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            DropdownButtonFormField<String>(
-              value: doseSelecionada,
-              decoration: const InputDecoration(labelText: 'Dose'),
-              items: ['Dose Única', '1ª Dose', '2ª Dose', '3ª Dose', 'Reforço']
-                  .map((d) => DropdownMenuItem(value: d, child: Text(d))).toList(),
-              onChanged: (v) { if (v != null) doseSelecionada = v; },
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: loteController,
-              decoration: const InputDecoration(
-                labelText: 'Número do Lote da Vacina *',
-                hintText: 'Ex: LT-2026-X99',
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
-          ElevatedButton(
-            onPressed: () {
-              if (loteController.text.trim().isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Por favor, informe o número do Lote!')),
-                );
-                return;
-              }
-
-              final novaVacina = VacinaAplicada(
-                nome: nomeVacina,
-                dose: doseSelecionada,
-                lote: loteController.text.trim(),
-                dataAplicacao: DateTime.now(),
-                aplicador: widget.agente.nome,
-              );
-
-              indigena.vacinasTomadas.add(novaVacina);
-              StorageService.salvarIndigenas(indigenas);
-              _registrarAtendimento(indigena, 'Vacinação', 'Aplicada vacina $nomeVacina ($doseSelecionada) - Lote: ${loteController.text}');
-
-              Navigator.pop(ctx);
-              onAtualizar();
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('$nomeVacina aplicada com sucesso!')),
-              );
-            },
-            child: const Text('Confirmar Aplicação'),
-          ),
-        ],
       ),
     );
   }
@@ -421,13 +360,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: Text('Atender: ${indigena.nome}'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             DropdownButtonFormField<String>(
-              value: tipo,
+              initialValue: tipo,
               decoration: const InputDecoration(labelText: 'Tipo de Atendimento'),
               items: ['Consulta Médica', 'Odontologia', 'Enfermagem', 'Acompanhamento']
                   .map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
@@ -442,11 +381,21 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext), 
+            child: const Text('Cancelar'),
+          ),
           ElevatedButton(
-            onPressed: () {
-              _registrarAtendimento(indigena, tipo, obsController.text);
-              Navigator.pop(ctx);
+            onPressed: () async {
+              final messenger = ScaffoldMessenger.of(context);
+              final navigator = Navigator.of(dialogContext);
+
+              await _registrarAtendimento(indigena, tipo, obsController.text);
+
+              navigator.pop();
+              messenger.showSnackBar(
+                const SnackBar(content: Text('Atendimento registrado com sucesso!')),
+              );
             },
             child: const Text('Salvar Atendimento'),
           ),
