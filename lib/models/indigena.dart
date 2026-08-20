@@ -61,12 +61,15 @@ class Indigena {
     return idadeCalculada;
   }
 
+  // Faixas etárias atualizadas para o padrão da FUNAI
   String get faixaEtaria {
     final i = idade;
-    if (i <= 11) return 'Criança (0-11)';
-    if (i <= 17) return 'Jovem (12-17)';
-    if (i <= 59) return 'Adulto (18-59)';
-    return 'Idoso (60+)';
+    if (i <= 4) return '0 a 4 anos';
+    if (i <= 9) return '5 a 9 anos';
+    if (i <= 19) return '10 a 19 anos';
+    if (i <= 29) return '20 a 29 anos';
+    if (i <= 59) return '30 a 59 anos';
+    return '60+';
   }
 
   List<String> get vacinasPendentes {

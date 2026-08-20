@@ -284,11 +284,14 @@ class _HomeScreenState extends State<HomeScreen> {
       a.dataHora.day == dataRelatorio.day
     ).toList();
 
+    // Dicionário atualizado com as novas faixas etárias da FUNAI
     final Map<String, int> faixas = {
-      'Criança (0-11)': 0,
-      'Jovem (12-17)': 0,
-      'Adulto (18-59)': 0,
-      'Idoso (60+)': 0,
+      '0 a 4 anos': 0,
+      '5 a 9 anos': 0,
+      '10 a 19 anos': 0,
+      '20 a 29 anos': 0,
+      '30 a 59 anos': 0,
+      '60+': 0,
     };
 
     for (var a in atdData) {
