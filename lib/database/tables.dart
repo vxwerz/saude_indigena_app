@@ -59,6 +59,10 @@ class Atendimentos extends Table {
   TextColumn get observacoes => text()();
   DateTimeColumn get dataHora => dateTime()();
 
+  // NOVOS CAMPOS: Identificação do Agente e Controle de Sincronização
+  TextColumn get agenteMatricula => text()();
+  BoolColumn get sincronizado => boolean().withDefault(const Constant(false))();
+
   @override
   Set<Column> get primaryKey => {id};
 }

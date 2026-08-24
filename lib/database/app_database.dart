@@ -9,29 +9,35 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
-    onCreate: (Migrator m) async {
-      await m.createAll();
-      
-      // Popula as 9 aldeias automaticamente na primeira inicialização
-      await batch((b) {
-        b.insertAll(aldeias, [
-          AldeiasCompanion.insert(nome: 'Aldeinha'),
-          AldeiasCompanion.insert(nome: 'Itaoca Guarani'),
-          AldeiasCompanion.insert(nome: 'Itaoca Tupi'),
-          AldeiasCompanion.insert(nome: 'Tekoa'),
-          AldeiasCompanion.insert(nome: 'Yakã'),
-          AldeiasCompanion.insert(nome: 'Arapyau'),
-          AldeiasCompanion.insert(nome: 'Nhanderú-Pó'),
-          AldeiasCompanion.insert(nome: 'Ka\'aguy Mirim'),
-          AldeiasCompanion.insert(nome: 'Barigui'),
-        ]);
-      });
-    },
-  );
+        onCreate: (Migrator m) async {
+          await m.createAll();
+
+          // Popula as 9 aldeias automaticamente na primeira inicialização
+          await batch((b) {
+            b.insertAll(aldeias, [
+              AldeiasCompanion.insert(nome: 'Aldeinha'),
+              AldeiasCompanion.insert(nome: 'Itaoca Guarani'),
+              AldeiasCompanion.insert(nome: 'Itaoca Tupi'),
+              AldeiasCompanion.insert(nome: 'Tekoa'),
+              AldeiasCompanion.insert(nome: 'Yakã'),
+              AldeiasCompanion.insert(nome: 'Arapyau'),
+              AldeiasCompanion.insert(nome: 'Nhanderú-Pó'),
+              AldeiasCompanion.insert(nome: 'Ka\'aguy Mirim'),
+              AldeiasCompanion.insert(nome: 'Barigui'),
+            ]);
+          });
+        },
+        onUpgrade: (Migrator m, int from, int to) async {
+          if (from < 2) {
+            // Recria a estrutura das colunas sem causar conflito de tipo de classe
+            await m.alterTable(TableMigration(atendimentos));
+          }
+        },
+      );
 
   // ===========================================================================
   // CONSULTAS (QUERIES) DO APP
@@ -55,12 +61,10 @@ class AppDatabase extends _$AppDatabase {
     String? motivo,
   }) async {
     return transaction(() async {
-      // Passo A: Atualiza a aldeia atual do indígena
       await (update(indigenas)..where((tbl) => tbl.id.equals(indigenaId))).write(
         IndigenasCompanion(aldeiaAtualId: Value(aldeiaDestinoId)),
       );
 
-      // Passo B: Insere o registro de auditoria na tabela de histórico
       await into(historicoLogradouros).insert(
         HistoricoLogradourosCompanion.insert(
           indigenaId: indigenaId,
@@ -84,6 +88,20 @@ class AppDatabase extends _$AppDatabase {
 
   Future<List<Indigena>> listarEmTransito() {
     return (select(indigenas)..where((tbl) => tbl.emTransito.equals(true))).get();
+  }
+
+  // 5. CONSULTAS PARA OS RELATÓRIOS MENSAIS
+
+  // Busca atendimentos de um agente específico no mês/ano (Ficha Word Individual)
+  Future<List<Atendimento>> listarAtendimentosPorAgenteEMes(String matricula, int mes, int ano) async {
+    final todos = await select(atendimentos).get();
+    return todos.where((a) => a.agenteMatricula == matricula && a.dataHora.month == mes && a.dataHora.year == ano).toList();
+  }
+
+  // Busca TODOS os atendimentos do mês/ano (Fechamento Geral da Unidade)
+  Future<List<Atendimento>> listarAtendimentosGeraisPorMes(int mes, int ano) async {
+    final todos = await select(atendimentos).get();
+    return todos.where((a) => a.dataHora.month == mes && a.dataHora.year == ano).toList();
   }
 }
 

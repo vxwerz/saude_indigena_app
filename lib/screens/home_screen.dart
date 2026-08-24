@@ -1,106 +1,140 @@
 import 'package:flutter/material.dart';
-import '../main.dart';
-
-// Oculta Indigena e Atendimento do Drift para evitar conflitos de nome com os modelos de dominio
-import '../database/app_database.dart' hide Indigena, Atendimento; 
-
 import '../models/agente_funai.dart';
-import '../models/atendimento.dart';
-import '../models/indigena.dart';
+
+// --- CLASSES DE MODELO ---
+
+class Vacina {
+  final String nome;
+  final String dose;
+  final String lote;
+  final DateTime dataAplicacao;
+  final String aplicador;
+
+  Vacina({
+    required this.nome,
+    required this.dose,
+    required this.lote,
+    required this.dataAplicacao,
+    required this.aplicador,
+  });
+}
+
+class Indigena {
+  final String nome;
+  final String cns;
+  final int idade;
+  final String faixaEtaria;
+  final String aldeiaAtual;
+  final List<Vacina> vacinasTomadas;
+
+  Indigena({
+    required this.nome,
+    required this.cns,
+    required this.idade,
+    required this.faixaEtaria,
+    required this.aldeiaAtual,
+    required this.vacinasTomadas,
+  });
+}
+
+class Atendimento {
+  final DateTime dataHora;
+  final String faixaEtaria;
+  final String tipo;
+
+  Atendimento({
+    required this.dataHora,
+    required this.faixaEtaria,
+    required this.tipo,
+  });
+}
+
+// --- TELA PRINCIPAL (HomeScreen) ---
 
 class HomeScreen extends StatefulWidget {
   final AgenteFunai agente;
-  const HomeScreen({super.key, required this.agente});
+
+  const HomeScreen({
+    super.key,
+    required this.agente,
+  });
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final List<String> aldeias = const [
-    'Aldeinha', 'Itaoca Guarani', 'Itaoca Tupi', 'Tekoa',
-    'Yakã', 'Arapyau', 'Nhanderú-Pó', 'Ka\'aguy Mirim', 'Barigui'
-  ];
+  final TextEditingController _buscaController = TextEditingController();
 
-  String aldeiaSelecionada = 'Aldeinha';
+  List<String> aldeias = ['Aldeia Maracanã', 'Aldeia Tekoa Pyau', 'Aldeia Yynn Moroti Wery'];
+  String aldeiaSelecionada = 'Aldeia Maracanã';
   String buscaQuery = '';
   DateTime dataRelatorio = DateTime.now();
 
   List<Indigena> indigenas = [];
   List<Atendimento> atendimentos = [];
-  bool carregando = true;
 
   @override
   void initState() {
     super.initState();
-    _carregarDados();
+    _carregarDadosIniciais();
   }
 
-  Future<void> _carregarDados() async {
-    setState(() => carregando = true);
-    final aldeiaId = aldeias.indexOf(aldeiaSelecionada) + 1;
-
-    final indigenasDoBanco = await database.listarIndigenasPorAldeia(aldeiaId);
-
-    final listaConvertida = indigenasDoBanco.map((i) {
-      return Indigena(
-        id: i.id.toString(),
-        nome: i.nome,
-        cns: i.cns,
-        dataNascimento: i.dataNascimento,
-        aldeiaAtual: aldeiaSelecionada,
-        vacinasTomadas: [],
-      );
-    }).toList();
-
-    setState(() {
-      indigenas = listaConvertida;
-      carregando = false;
-    });
+  @override
+  void dispose() {
+    _buscaController.dispose();
+    super.dispose();
   }
 
-  Future<void> _registrarAtendimento(Indigena indigena, String tipo, String obs) async {
-    final aldeiaId = aldeias.indexOf(indigena.aldeiaAtual) + 1;
-    final agora = DateTime.now();
-    final String idGeradoStr = agora.millisecondsSinceEpoch.toString();
-
-    // Passa 'id' e 'indigenaId' estritamente como String para alinhar com o Drift
-    await database.into(database.atendimentos).insert(
-      AtendimentosCompanion.insert(
-        id: idGeradoStr,
-        indigenaId: indigena.id,
-        aldeiaId: aldeiaId,
-        tipoAtendimento: tipo,
-        dataHora: agora,
-        observacoes: obs,
+  void _carregarDadosIniciais() {
+    indigenas = [
+      Indigena(
+        nome: 'Kawy Tupinambá',
+        cns: '700102030405060',
+        idade: 4,
+        faixaEtaria: '0 a 4 anos',
+        aldeiaAtual: 'Aldeia Maracanã',
+        vacinasTomadas: [
+          Vacina(
+            nome: 'BCG',
+            dose: 'Dose Única',
+            lote: 'BCG2023',
+            dataAplicacao: DateTime.now().subtract(const Duration(days: 300)),
+            aplicador: 'Enf. Juliana',
+          ),
+        ],
       ),
-    );
+      Indigena(
+        nome: 'Moara Guarani',
+        cns: '800908070605040',
+        idade: 28,
+        faixaEtaria: '20 a 29 anos',
+        aldeiaAtual: 'Aldeia Maracanã',
+        vacinasTomadas: [],
+      ),
+    ];
 
-    final novoAtendimento = Atendimento(
-      id: idGeradoStr,
-      indigenaId: indigena.id,
-      nomeIndigena: indigena.nome,
-      cnsIndigena: indigena.cns,
-      aldeia: indigena.aldeiaAtual,
-      tipoAtendimento: tipo,
-      idade: indigena.idade,
-      faixaEtaria: indigena.faixaEtaria,
-      observacoes: obs,
-      dataHora: agora,
-    );
-
-    setState(() {
-      atendimentos.add(novoAtendimento);
-    });
+    atendimentos = [
+      Atendimento(
+        dataHora: DateTime.now(),
+        faixaEtaria: '0 a 4 anos',
+        tipo: 'Consulta Médica',
+      ),
+    ];
   }
 
-  int get atendimentosHoje {
-    final hoje = DateTime.now();
-    return atendimentos.where((a) =>
-      a.dataHora.year == hoje.year &&
-      a.dataHora.month == hoje.month &&
-      a.dataHora.day == hoje.day
-    ).length;
+  Future<void> _registrarAtendimento(
+      Indigena indigena, String tipo, String observacao) async {
+    await Future.delayed(const Duration(milliseconds: 500));
+    setState(() {
+      atendimentos.add(
+        Atendimento(
+          dataHora: DateTime.now(),
+          faixaEtaria: indigena.faixaEtaria,
+          tipo: tipo,
+        ),
+      );
+    });
   }
 
   @override
@@ -109,44 +143,34 @@ class _HomeScreenState extends State<HomeScreen> {
       length: 2,
       child: Scaffold(
         appBar: AppBar(
+          backgroundColor: const Color(0xFF006A4E),
+          foregroundColor: Colors.white,
           title: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Saúde Indígena App', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              Text('${widget.agente.nome} (${widget.agente.matricula})', style: const TextStyle(fontSize: 12, color: Colors.white70)),
+              const Text('Saúde Indígena', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              Text(
+                '${widget.agente.nome} (${widget.agente.cargo})',
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.normal),
+              ),
             ],
           ),
-          backgroundColor: Theme.of(context).colorScheme.primary,
-          foregroundColor: Colors.white,
-          actions: [
-            Padding(
-              padding: const EdgeInsets.only(right: 12.0),
-              child: Center(
-                child: Chip(
-                  avatar: const Icon(Icons.check_circle, size: 16),
-                  label: Text('Hoje: $atendimentosHoje'),
-                ),
-              ),
-            ),
-          ],
           bottom: const TabBar(
+            indicatorColor: Colors.white,
             labelColor: Colors.white,
             unselectedLabelColor: Colors.white70,
-            indicatorColor: Colors.amber,
             tabs: [
               Tab(icon: Icon(Icons.medical_services), text: 'Atendimentos'),
-              Tab(icon: Icon(Icons.analytics), text: 'Relatórios'),
+              Tab(icon: Icon(Icons.bar_chart), text: 'Relatórios'),
             ],
           ),
         ),
-        body: carregando
-            ? const Center(child: CircularProgressIndicator())
-            : TabBarView(
-                children: [
-                  _buildAbaAtendimentos(),
-                  _buildAbaRelatorios(),
-                ],
-              ),
+        body: TabBarView(
+          children: [
+            _buildAbaAtendimentos(),
+            _buildAbaRelatorios(),
+          ],
+        ),
       ),
     );
   }
@@ -154,7 +178,8 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildAbaAtendimentos() {
     final filtrados = indigenas.where((i) {
       final matchAldeia = i.aldeiaAtual == aldeiaSelecionada;
-      final matchQuery = i.nome.toLowerCase().contains(buscaQuery.toLowerCase()) ||
+      final queryLower = buscaQuery.toLowerCase();
+      final matchQuery = i.nome.toLowerCase().contains(queryLower) ||
           i.cns.contains(buscaQuery);
       return matchAldeia && matchQuery;
     }).toList();
@@ -165,17 +190,22 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           DropdownButtonFormField<String>(
             initialValue: aldeiaSelecionada,
-            decoration: const InputDecoration(labelText: 'Selecione a Aldeia', border: OutlineInputBorder()),
-            items: aldeias.map((a) => DropdownMenuItem(value: a, child: Text(a))).toList(),
+            decoration: const InputDecoration(
+              labelText: 'Selecione a Aldeia',
+              border: OutlineInputBorder(),
+            ),
+            items: aldeias
+                .map((a) => DropdownMenuItem(value: a, child: Text(a)))
+                .toList(),
             onChanged: (val) {
               if (val != null) {
                 setState(() => aldeiaSelecionada = val);
-                _carregarDados();
               }
             },
           ),
           const SizedBox(height: 12),
           TextField(
+            controller: _buscaController,
             decoration: const InputDecoration(
               labelText: 'Buscar por Nome ou CNS',
               prefixIcon: Icon(Icons.search),
@@ -186,26 +216,38 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(height: 16),
           Expanded(
             child: filtrados.isEmpty
-                ? const Center(child: Text('Nenhum indígena encontrado nesta aldeia.'))
+                ? const Center(
+                    child: Text('Nenhum indígena encontrado nesta aldeia.'),
+                  )
                 : ListView.builder(
                     itemCount: filtrados.length,
                     itemBuilder: (context, index) {
                       final item = filtrados[index];
                       return Card(
+                        elevation: 2,
+                        margin: const EdgeInsets.symmetric(vertical: 6),
                         child: ListTile(
-                          title: Text(item.nome, style: const TextStyle(fontWeight: FontWeight.bold)),
-                          subtitle: Text('CNS: ${item.cns}\nIdade: ${item.idade} anos (${item.faixaEtaria})'),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
+                          title: Text(
+                            item.nome,
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          subtitle: Text(
+                            'CNS: ${item.cns}\nIdade: ${item.idade} anos (${item.faixaEtaria})',
+                          ),
+                          trailing: Wrap(
+                            spacing: 8,
                             children: [
                               OutlinedButton.icon(
-                                icon: const Icon(Icons.vaccines, color: Colors.teal),
+                                icon: const Icon(Icons.vaccines, color: Colors.teal, size: 18),
                                 label: const Text('Vacinas'),
                                 onPressed: () => _abrirCartaoVacina(item),
                               ),
-                              const SizedBox(width: 8),
                               ElevatedButton.icon(
-                                icon: const Icon(Icons.add),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF006A4E),
+                                  foregroundColor: Colors.white,
+                                ),
+                                icon: const Icon(Icons.add, size: 18),
                                 label: const Text('Atender'),
                                 onPressed: () => _abrirModalAtendimento(item),
                               ),
@@ -225,66 +267,86 @@ class _HomeScreenState extends State<HomeScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setModalState) {
-          return Container(
-            height: MediaQuery.of(context).size.height * 0.85,
-            padding: const EdgeInsets.all(20.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Cartão de Vacinas: ${indigena.nome}', 
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx)),
-                  ],
-                ),
-                const Divider(),
-                const Text('Vacinas Aplicadas:', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
-                const SizedBox(height: 8),
-                Expanded(
-                  flex: 1,
-                  child: indigena.vacinasTomadas.isEmpty
-                      ? const Center(child: Text('Nenhuma vacina registrada ainda.'))
-                      : ListView.builder(
-                          itemCount: indigena.vacinasTomadas.length,
-                          itemBuilder: (context, i) {
-                            final v = indigena.vacinasTomadas[i];
-                            return Card(
-                              color: Colors.green.shade50,
-                              child: ListTile(
-                                leading: const Icon(Icons.check_circle, color: Colors.green),
-                                title: Text('${v.nome} - ${v.dose}'),
-                                subtitle: Text('Lote: ${v.lote} | Data: ${v.dataAplicacao.day}/${v.dataAplicacao.month}/${v.dataAplicacao.year}\nAplicador: ${v.aplicador}'),
-                              ),
-                            );
-                          },
-                        ),
-                ),
-              ],
-            ),
-          );
-        },
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
+      builder: (ctx) {
+        return Container(
+          height: MediaQuery.of(ctx).size.height * 0.85,
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Cartão de Vacinas: ${indigena.nome}',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+              const Divider(),
+              const Text(
+                'Vacinas Aplicadas:',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.green,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Expanded(
+                child: indigena.vacinasTomadas.isEmpty
+                    ? const Center(
+                        child: Text('Nenhuma vacina registrada ainda.'),
+                      )
+                    : ListView.builder(
+                        itemCount: indigena.vacinasTomadas.length,
+                        itemBuilder: (context, i) {
+                          final v = indigena.vacinasTomadas[i];
+                          final dia = v.dataAplicacao.day.toString().padLeft(2, '0');
+                          final mes = v.dataAplicacao.month.toString().padLeft(2, '0');
+                          final ano = v.dataAplicacao.year;
+
+                          return Card(
+                            color: Colors.green.shade50,
+                            child: ListTile(
+                              leading: const Icon(
+                                Icons.check_circle,
+                                color: Colors.green,
+                              ),
+                              title: Text('${v.nome} - ${v.dose}'),
+                              subtitle: Text(
+                                'Lote: ${v.lote} | Data: $dia/$mes/$ano\nAplicador: ${v.aplicador}',
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
   Widget _buildAbaRelatorios() {
     final atdData = atendimentos.where((a) =>
-      a.dataHora.year == dataRelatorio.year &&
-      a.dataHora.month == dataRelatorio.month &&
-      a.dataHora.day == dataRelatorio.day
-    ).toList();
+        a.dataHora.year == dataRelatorio.year &&
+        a.dataHora.month == dataRelatorio.month &&
+        a.dataHora.day == dataRelatorio.day).toList();
 
-    // Dicionário atualizado com as novas faixas etárias da FUNAI
     final Map<String, int> faixas = {
       '0 a 4 anos': 0,
       '5 a 9 anos': 0,
@@ -295,10 +357,14 @@ class _HomeScreenState extends State<HomeScreen> {
     };
 
     for (var a in atdData) {
-      if (faixas.containsKey(a.faixaEtaria)) {
-        faixas[a.faixaEtaria] = faixas[a.faixaEtaria]! + 1;
+      final faixa = a.faixaEtaria;
+      if (faixas.containsKey(faixa)) {
+        faixas[faixa] = faixas[faixa]! + 1;
       }
     }
+
+    final dia = dataRelatorio.day.toString().padLeft(2, '0');
+    final mes = dataRelatorio.month.toString().padLeft(2, '0');
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
@@ -309,7 +375,7 @@ class _HomeScreenState extends State<HomeScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Data: ${dataRelatorio.day.toString().padLeft(2, '0')}/${dataRelatorio.month.toString().padLeft(2, '0')}/${dataRelatorio.year}',
+                'Data: $dia/$mes/${dataRelatorio.year}',
                 style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               ElevatedButton.icon(
@@ -336,21 +402,29 @@ class _HomeScreenState extends State<HomeScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
                   const Text('Total de Atendimentos:', style: TextStyle(fontSize: 16)),
-                  Text('${atdData.length}', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                  Text(
+                    '${atdData.length}',
+                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                  ),
                 ],
               ),
             ),
           ),
           const SizedBox(height: 20),
-          const Text('Distribuição por Faixa Etária:', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          const Text(
+            'Distribuição por Faixa Etária:',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 10),
           Wrap(
             spacing: 8,
             runSpacing: 8,
-            children: faixas.entries.map((e) => Chip(
-              label: Text('${e.key}: ${e.value}'),
-              backgroundColor: Colors.teal.shade100,
-            )).toList(),
+            children: faixas.entries
+                .map((e) => Chip(
+                      label: Text('${e.key}: ${e.value}'),
+                      backgroundColor: Colors.teal.shade100,
+                    ))
+                .toList(),
           ),
         ],
       ),
@@ -358,52 +432,120 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _abrirModalAtendimento(Indigena indigena) {
-    String tipo = 'Consulta Médica';
-    final obsController = TextEditingController();
-
     showDialog(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text('Atender: ${indigena.nome}'),
-        content: Column(
+      builder: (dialogContext) {
+        return _ModalAtendimentoDialog(
+          indigena: indigena,
+          onSalvar: (tipo, obs) async {
+            await _registrarAtendimento(indigena, tipo, obs);
+          },
+        );
+      },
+    );
+  }
+}
+
+// --- DIÁLOGO DE ATENDIMENTO ---
+
+class _ModalAtendimentoDialog extends StatefulWidget {
+  final Indigena indigena;
+  final Future<void> Function(String tipo, String obs) onSalvar;
+
+  const _ModalAtendimentoDialog({
+    required this.indigena,
+    required this.onSalvar,
+  });
+
+  @override
+  State<_ModalAtendimentoDialog> createState() => _ModalAtendimentoDialogState();
+}
+
+class _ModalAtendimentoDialogState extends State<_ModalAtendimentoDialog> {
+  final _obsController = TextEditingController();
+  String _tipoSelecionado = 'Consulta Médica';
+  bool _carregando = false;
+
+  final List<String> _tiposAtendimento = const [
+    'Consulta Médica',
+    'Odontologia',
+    'Enfermagem',
+    'Acompanhamento',
+  ];
+
+  @override
+  void dispose() {
+    _obsController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text('Atender: ${widget.indigena.nome}'),
+      content: SingleChildScrollView(
+        child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             DropdownButtonFormField<String>(
-              initialValue: tipo,
+              initialValue: _tipoSelecionado,
               decoration: const InputDecoration(labelText: 'Tipo de Atendimento'),
-              items: ['Consulta Médica', 'Odontologia', 'Enfermagem', 'Acompanhamento']
-                  .map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
-              onChanged: (v) { if (v != null) tipo = v; },
+              items: _tiposAtendimento
+                  .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                  .toList(),
+              onChanged: (v) {
+                if (v != null) setState(() => _tipoSelecionado = v);
+              },
             ),
             const SizedBox(height: 12),
             TextField(
-              controller: obsController,
-              decoration: const InputDecoration(labelText: 'Observações / Diagnóstico'),
+              controller: _obsController,
+              decoration: const InputDecoration(
+                labelText: 'Observações / Diagnóstico',
+              ),
               maxLines: 3,
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext), 
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final messenger = ScaffoldMessenger.of(context);
-              final navigator = Navigator.of(dialogContext);
-
-              await _registrarAtendimento(indigena, tipo, obsController.text);
-
-              navigator.pop();
-              messenger.showSnackBar(
-                const SnackBar(content: Text('Atendimento registrado com sucesso!')),
-              );
-            },
-            child: const Text('Salvar Atendimento'),
-          ),
-        ],
       ),
+      actions: [
+        TextButton(
+          onPressed: _carregando ? null : () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF006A4E),
+            foregroundColor: Colors.white,
+          ),
+          onPressed: _carregando
+              ? null
+              : () async {
+                  setState(() => _carregando = true);
+
+                  await widget.onSalvar(_tipoSelecionado, _obsController.text);
+
+                  if (!context.mounted) return;
+
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Atendimento registrado com sucesso!'),
+                    ),
+                  );
+                },
+          child: _carregando
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+              : const Text('Salvar Atendimento'),
+        ),
+      ],
     );
   }
 }

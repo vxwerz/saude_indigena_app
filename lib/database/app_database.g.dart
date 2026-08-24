@@ -1072,9 +1072,33 @@ class $AtendimentosTable extends Atendimentos
   late final GeneratedColumn<DateTime> dataHora = GeneratedColumn<DateTime>(
       'data_hora', aliasedName, false,
       type: DriftSqlType.dateTime, requiredDuringInsert: true);
+  static const VerificationMeta _agenteMatriculaMeta =
+      const VerificationMeta('agenteMatricula');
   @override
-  List<GeneratedColumn> get $columns =>
-      [id, indigenaId, aldeiaId, tipoAtendimento, observacoes, dataHora];
+  late final GeneratedColumn<String> agenteMatricula = GeneratedColumn<String>(
+      'agente_matricula', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _sincronizadoMeta =
+      const VerificationMeta('sincronizado');
+  @override
+  late final GeneratedColumn<bool> sincronizado = GeneratedColumn<bool>(
+      'sincronizado', aliasedName, false,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: false,
+      defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("sincronizado" IN (0, 1))'),
+      defaultValue: const Constant(false));
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        indigenaId,
+        aldeiaId,
+        tipoAtendimento,
+        observacoes,
+        dataHora,
+        agenteMatricula,
+        sincronizado
+      ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -1126,6 +1150,20 @@ class $AtendimentosTable extends Atendimentos
     } else if (isInserting) {
       context.missing(_dataHoraMeta);
     }
+    if (data.containsKey('agente_matricula')) {
+      context.handle(
+          _agenteMatriculaMeta,
+          agenteMatricula.isAcceptableOrUnknown(
+              data['agente_matricula']!, _agenteMatriculaMeta));
+    } else if (isInserting) {
+      context.missing(_agenteMatriculaMeta);
+    }
+    if (data.containsKey('sincronizado')) {
+      context.handle(
+          _sincronizadoMeta,
+          sincronizado.isAcceptableOrUnknown(
+              data['sincronizado']!, _sincronizadoMeta));
+    }
     return context;
   }
 
@@ -1147,6 +1185,10 @@ class $AtendimentosTable extends Atendimentos
           .read(DriftSqlType.string, data['${effectivePrefix}observacoes'])!,
       dataHora: attachedDatabase.typeMapping
           .read(DriftSqlType.dateTime, data['${effectivePrefix}data_hora'])!,
+      agenteMatricula: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}agente_matricula'])!,
+      sincronizado: attachedDatabase.typeMapping
+          .read(DriftSqlType.bool, data['${effectivePrefix}sincronizado'])!,
     );
   }
 
@@ -1163,13 +1205,17 @@ class Atendimento extends DataClass implements Insertable<Atendimento> {
   final String tipoAtendimento;
   final String observacoes;
   final DateTime dataHora;
+  final String agenteMatricula;
+  final bool sincronizado;
   const Atendimento(
       {required this.id,
       required this.indigenaId,
       required this.aldeiaId,
       required this.tipoAtendimento,
       required this.observacoes,
-      required this.dataHora});
+      required this.dataHora,
+      required this.agenteMatricula,
+      required this.sincronizado});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -1179,6 +1225,8 @@ class Atendimento extends DataClass implements Insertable<Atendimento> {
     map['tipo_atendimento'] = Variable<String>(tipoAtendimento);
     map['observacoes'] = Variable<String>(observacoes);
     map['data_hora'] = Variable<DateTime>(dataHora);
+    map['agente_matricula'] = Variable<String>(agenteMatricula);
+    map['sincronizado'] = Variable<bool>(sincronizado);
     return map;
   }
 
@@ -1190,6 +1238,8 @@ class Atendimento extends DataClass implements Insertable<Atendimento> {
       tipoAtendimento: Value(tipoAtendimento),
       observacoes: Value(observacoes),
       dataHora: Value(dataHora),
+      agenteMatricula: Value(agenteMatricula),
+      sincronizado: Value(sincronizado),
     );
   }
 
@@ -1203,6 +1253,8 @@ class Atendimento extends DataClass implements Insertable<Atendimento> {
       tipoAtendimento: serializer.fromJson<String>(json['tipoAtendimento']),
       observacoes: serializer.fromJson<String>(json['observacoes']),
       dataHora: serializer.fromJson<DateTime>(json['dataHora']),
+      agenteMatricula: serializer.fromJson<String>(json['agenteMatricula']),
+      sincronizado: serializer.fromJson<bool>(json['sincronizado']),
     );
   }
   @override
@@ -1215,6 +1267,8 @@ class Atendimento extends DataClass implements Insertable<Atendimento> {
       'tipoAtendimento': serializer.toJson<String>(tipoAtendimento),
       'observacoes': serializer.toJson<String>(observacoes),
       'dataHora': serializer.toJson<DateTime>(dataHora),
+      'agenteMatricula': serializer.toJson<String>(agenteMatricula),
+      'sincronizado': serializer.toJson<bool>(sincronizado),
     };
   }
 
@@ -1224,7 +1278,9 @@ class Atendimento extends DataClass implements Insertable<Atendimento> {
           int? aldeiaId,
           String? tipoAtendimento,
           String? observacoes,
-          DateTime? dataHora}) =>
+          DateTime? dataHora,
+          String? agenteMatricula,
+          bool? sincronizado}) =>
       Atendimento(
         id: id ?? this.id,
         indigenaId: indigenaId ?? this.indigenaId,
@@ -1232,6 +1288,8 @@ class Atendimento extends DataClass implements Insertable<Atendimento> {
         tipoAtendimento: tipoAtendimento ?? this.tipoAtendimento,
         observacoes: observacoes ?? this.observacoes,
         dataHora: dataHora ?? this.dataHora,
+        agenteMatricula: agenteMatricula ?? this.agenteMatricula,
+        sincronizado: sincronizado ?? this.sincronizado,
       );
   Atendimento copyWithCompanion(AtendimentosCompanion data) {
     return Atendimento(
@@ -1245,6 +1303,12 @@ class Atendimento extends DataClass implements Insertable<Atendimento> {
       observacoes:
           data.observacoes.present ? data.observacoes.value : this.observacoes,
       dataHora: data.dataHora.present ? data.dataHora.value : this.dataHora,
+      agenteMatricula: data.agenteMatricula.present
+          ? data.agenteMatricula.value
+          : this.agenteMatricula,
+      sincronizado: data.sincronizado.present
+          ? data.sincronizado.value
+          : this.sincronizado,
     );
   }
 
@@ -1256,14 +1320,16 @@ class Atendimento extends DataClass implements Insertable<Atendimento> {
           ..write('aldeiaId: $aldeiaId, ')
           ..write('tipoAtendimento: $tipoAtendimento, ')
           ..write('observacoes: $observacoes, ')
-          ..write('dataHora: $dataHora')
+          ..write('dataHora: $dataHora, ')
+          ..write('agenteMatricula: $agenteMatricula, ')
+          ..write('sincronizado: $sincronizado')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(
-      id, indigenaId, aldeiaId, tipoAtendimento, observacoes, dataHora);
+  int get hashCode => Object.hash(id, indigenaId, aldeiaId, tipoAtendimento,
+      observacoes, dataHora, agenteMatricula, sincronizado);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -1273,7 +1339,9 @@ class Atendimento extends DataClass implements Insertable<Atendimento> {
           other.aldeiaId == this.aldeiaId &&
           other.tipoAtendimento == this.tipoAtendimento &&
           other.observacoes == this.observacoes &&
-          other.dataHora == this.dataHora);
+          other.dataHora == this.dataHora &&
+          other.agenteMatricula == this.agenteMatricula &&
+          other.sincronizado == this.sincronizado);
 }
 
 class AtendimentosCompanion extends UpdateCompanion<Atendimento> {
@@ -1283,6 +1351,8 @@ class AtendimentosCompanion extends UpdateCompanion<Atendimento> {
   final Value<String> tipoAtendimento;
   final Value<String> observacoes;
   final Value<DateTime> dataHora;
+  final Value<String> agenteMatricula;
+  final Value<bool> sincronizado;
   final Value<int> rowid;
   const AtendimentosCompanion({
     this.id = const Value.absent(),
@@ -1291,6 +1361,8 @@ class AtendimentosCompanion extends UpdateCompanion<Atendimento> {
     this.tipoAtendimento = const Value.absent(),
     this.observacoes = const Value.absent(),
     this.dataHora = const Value.absent(),
+    this.agenteMatricula = const Value.absent(),
+    this.sincronizado = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   AtendimentosCompanion.insert({
@@ -1300,13 +1372,16 @@ class AtendimentosCompanion extends UpdateCompanion<Atendimento> {
     required String tipoAtendimento,
     required String observacoes,
     required DateTime dataHora,
+    required String agenteMatricula,
+    this.sincronizado = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         indigenaId = Value(indigenaId),
         aldeiaId = Value(aldeiaId),
         tipoAtendimento = Value(tipoAtendimento),
         observacoes = Value(observacoes),
-        dataHora = Value(dataHora);
+        dataHora = Value(dataHora),
+        agenteMatricula = Value(agenteMatricula);
   static Insertable<Atendimento> custom({
     Expression<String>? id,
     Expression<String>? indigenaId,
@@ -1314,6 +1389,8 @@ class AtendimentosCompanion extends UpdateCompanion<Atendimento> {
     Expression<String>? tipoAtendimento,
     Expression<String>? observacoes,
     Expression<DateTime>? dataHora,
+    Expression<String>? agenteMatricula,
+    Expression<bool>? sincronizado,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -1323,6 +1400,8 @@ class AtendimentosCompanion extends UpdateCompanion<Atendimento> {
       if (tipoAtendimento != null) 'tipo_atendimento': tipoAtendimento,
       if (observacoes != null) 'observacoes': observacoes,
       if (dataHora != null) 'data_hora': dataHora,
+      if (agenteMatricula != null) 'agente_matricula': agenteMatricula,
+      if (sincronizado != null) 'sincronizado': sincronizado,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -1334,6 +1413,8 @@ class AtendimentosCompanion extends UpdateCompanion<Atendimento> {
       Value<String>? tipoAtendimento,
       Value<String>? observacoes,
       Value<DateTime>? dataHora,
+      Value<String>? agenteMatricula,
+      Value<bool>? sincronizado,
       Value<int>? rowid}) {
     return AtendimentosCompanion(
       id: id ?? this.id,
@@ -1342,6 +1423,8 @@ class AtendimentosCompanion extends UpdateCompanion<Atendimento> {
       tipoAtendimento: tipoAtendimento ?? this.tipoAtendimento,
       observacoes: observacoes ?? this.observacoes,
       dataHora: dataHora ?? this.dataHora,
+      agenteMatricula: agenteMatricula ?? this.agenteMatricula,
+      sincronizado: sincronizado ?? this.sincronizado,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -1367,6 +1450,12 @@ class AtendimentosCompanion extends UpdateCompanion<Atendimento> {
     if (dataHora.present) {
       map['data_hora'] = Variable<DateTime>(dataHora.value);
     }
+    if (agenteMatricula.present) {
+      map['agente_matricula'] = Variable<String>(agenteMatricula.value);
+    }
+    if (sincronizado.present) {
+      map['sincronizado'] = Variable<bool>(sincronizado.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -1382,6 +1471,8 @@ class AtendimentosCompanion extends UpdateCompanion<Atendimento> {
           ..write('tipoAtendimento: $tipoAtendimento, ')
           ..write('observacoes: $observacoes, ')
           ..write('dataHora: $dataHora, ')
+          ..write('agenteMatricula: $agenteMatricula, ')
+          ..write('sincronizado: $sincronizado, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -2783,6 +2874,8 @@ typedef $$AtendimentosTableCreateCompanionBuilder = AtendimentosCompanion
   required String tipoAtendimento,
   required String observacoes,
   required DateTime dataHora,
+  required String agenteMatricula,
+  Value<bool> sincronizado,
   Value<int> rowid,
 });
 typedef $$AtendimentosTableUpdateCompanionBuilder = AtendimentosCompanion
@@ -2793,6 +2886,8 @@ typedef $$AtendimentosTableUpdateCompanionBuilder = AtendimentosCompanion
   Value<String> tipoAtendimento,
   Value<String> observacoes,
   Value<DateTime> dataHora,
+  Value<String> agenteMatricula,
+  Value<bool> sincronizado,
   Value<int> rowid,
 });
 
@@ -2850,6 +2945,13 @@ class $$AtendimentosTableFilterComposer
 
   ColumnFilters<DateTime> get dataHora => $composableBuilder(
       column: $table.dataHora, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get agenteMatricula => $composableBuilder(
+      column: $table.agenteMatricula,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<bool> get sincronizado => $composableBuilder(
+      column: $table.sincronizado, builder: (column) => ColumnFilters(column));
 
   $$IndigenasTableFilterComposer get indigenaId {
     final $$IndigenasTableFilterComposer composer = $composerBuilder(
@@ -2914,6 +3016,14 @@ class $$AtendimentosTableOrderingComposer
   ColumnOrderings<DateTime> get dataHora => $composableBuilder(
       column: $table.dataHora, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<String> get agenteMatricula => $composableBuilder(
+      column: $table.agenteMatricula,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<bool> get sincronizado => $composableBuilder(
+      column: $table.sincronizado,
+      builder: (column) => ColumnOrderings(column));
+
   $$IndigenasTableOrderingComposer get indigenaId {
     final $$IndigenasTableOrderingComposer composer = $composerBuilder(
         composer: this,
@@ -2975,6 +3085,12 @@ class $$AtendimentosTableAnnotationComposer
 
   GeneratedColumn<DateTime> get dataHora =>
       $composableBuilder(column: $table.dataHora, builder: (column) => column);
+
+  GeneratedColumn<String> get agenteMatricula => $composableBuilder(
+      column: $table.agenteMatricula, builder: (column) => column);
+
+  GeneratedColumn<bool> get sincronizado => $composableBuilder(
+      column: $table.sincronizado, builder: (column) => column);
 
   $$IndigenasTableAnnotationComposer get indigenaId {
     final $$IndigenasTableAnnotationComposer composer = $composerBuilder(
@@ -3046,6 +3162,8 @@ class $$AtendimentosTableTableManager extends RootTableManager<
             Value<String> tipoAtendimento = const Value.absent(),
             Value<String> observacoes = const Value.absent(),
             Value<DateTime> dataHora = const Value.absent(),
+            Value<String> agenteMatricula = const Value.absent(),
+            Value<bool> sincronizado = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               AtendimentosCompanion(
@@ -3055,6 +3173,8 @@ class $$AtendimentosTableTableManager extends RootTableManager<
             tipoAtendimento: tipoAtendimento,
             observacoes: observacoes,
             dataHora: dataHora,
+            agenteMatricula: agenteMatricula,
+            sincronizado: sincronizado,
             rowid: rowid,
           ),
           createCompanionCallback: ({
@@ -3064,6 +3184,8 @@ class $$AtendimentosTableTableManager extends RootTableManager<
             required String tipoAtendimento,
             required String observacoes,
             required DateTime dataHora,
+            required String agenteMatricula,
+            Value<bool> sincronizado = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               AtendimentosCompanion.insert(
@@ -3073,6 +3195,8 @@ class $$AtendimentosTableTableManager extends RootTableManager<
             tipoAtendimento: tipoAtendimento,
             observacoes: observacoes,
             dataHora: dataHora,
+            agenteMatricula: agenteMatricula,
+            sincronizado: sincronizado,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0

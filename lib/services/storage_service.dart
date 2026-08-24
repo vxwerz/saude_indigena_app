@@ -33,14 +33,14 @@ class StorageService {
 
     if (jsonString != null) {
       final List<dynamic> list = jsonDecode(jsonString);
-      return list.map((e) => Atendimento.fromJson(e as Map<String, dynamic>)).toList();
+      return list.map((e) => Atendimento.fromMap(e as Map<String, dynamic>)).toList();
     }
     return [];
   }
 
   static Future<void> salvarAtendimentos(List<Atendimento> list) async {
     final prefs = await SharedPreferences.getInstance();
-    final String data = jsonEncode(list.map((e) => e.toJson()).toList());
+    final String data = jsonEncode(list.map((e) => e.toMap()).toList());
     await prefs.setString(_keyAtendimentos, data);
   }
 
@@ -75,6 +75,7 @@ class StorageService {
         nome: 'Jaciara Tupi',
         aldeiaAtual: 'Aldeinha',
         dataNascimento: DateTime(2018, 9, 20),
+        vacinasTomadas: [],
       ),
       Indigena(
         id: '3',
@@ -82,6 +83,7 @@ class StorageService {
         nome: 'Araci Guarani',
         aldeiaAtual: 'Itaoca Guarani',
         dataNascimento: DateTime(2012, 3, 8),
+        vacinasTomadas: [],
       ),
     ];
   }
