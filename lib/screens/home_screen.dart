@@ -1,4 +1,63 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart'
+    show
+        AlertDialog,
+        AppBar,
+        BorderRadius,
+        BuildContext,
+        Card,
+        Center,
+        Chip,
+        CircularProgressIndicator,
+        Color,
+        Colors,
+        Column,
+        Container,
+        CrossAxisAlignment,
+        DefaultTabController,
+        Divider,
+        DropdownButtonFormField,
+        DropdownMenuItem,
+        EdgeInsets,
+        ElevatedButton,
+        Expanded,
+        FontWeight,
+        Icon,
+        IconButton,
+        Icons,
+        InputDecoration,
+        ListTile,
+        ListView,
+        MainAxisAlignment,
+        MainAxisSize,
+        MediaQuery,
+        Navigator,
+        OutlineInputBorder,
+        OutlinedButton,
+        Padding,
+        Radius,
+        RoundedRectangleBorder,
+        Row,
+        Scaffold,
+        ScaffoldMessenger,
+        SingleChildScrollView,
+        SizedBox,
+        SnackBar,
+        State,
+        StatefulWidget,
+        Tab,
+        TabBar,
+        TabBarView,
+        Text,
+        TextButton,
+        TextEditingController,
+        TextField,
+        TextOverflow,
+        TextStyle,
+        Widget,
+        Wrap,
+        showDatePicker,
+        showDialog,
+        showModalBottomSheet;
 import '../models/agente_funai.dart';
 
 // --- CLASSES DE MODELO ---
@@ -66,8 +125,21 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _buscaController = TextEditingController();
 
-  List<String> aldeias = ['Aldeia Maracanã', 'Aldeia Tekoa Pyau', 'Aldeia Yynn Moroti Wery'];
-  String aldeiaSelecionada = 'Aldeia Maracanã';
+  // Lista oficial de aldeias do DSEI Litoral Sul / SESAI
+  final List<String> aldeias = const [
+    'Todas as Aldeias',
+    'Aguapeú',
+    'Aldeinha',
+    'Cerro Corá',
+    'Itaóca Guarani',
+    'Itaóca Tupi',
+    'Paranapuã',
+    'Rio Branco',
+    'Tangará',
+    'Tekoá-Miri',
+  ];
+
+  String aldeiaSelecionada = 'Todas as Aldeias';
   String buscaQuery = '';
   DateTime dataRelatorio = DateTime.now();
 
@@ -93,7 +165,7 @@ class _HomeScreenState extends State<HomeScreen> {
         cns: '700102030405060',
         idade: 4,
         faixaEtaria: '0 a 4 anos',
-        aldeiaAtual: 'Aldeia Maracanã',
+        aldeiaAtual: 'Tekoá-Miri',
         vacinasTomadas: [
           Vacina(
             nome: 'BCG',
@@ -109,7 +181,7 @@ class _HomeScreenState extends State<HomeScreen> {
         cns: '800908070605040',
         idade: 28,
         faixaEtaria: '20 a 29 anos',
-        aldeiaAtual: 'Aldeia Maracanã',
+        aldeiaAtual: 'Itaóca Tupi',
         vacinasTomadas: [],
       ),
     ];
@@ -148,10 +220,12 @@ class _HomeScreenState extends State<HomeScreen> {
           title: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Saúde Indígena', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const Text('Saúde Indígena',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               Text(
                 '${widget.agente.nome} (${widget.agente.cargo})',
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.normal),
+                style: const TextStyle(
+                    fontSize: 12, fontWeight: FontWeight.normal),
               ),
             ],
           ),
@@ -177,7 +251,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildAbaAtendimentos() {
     final filtrados = indigenas.where((i) {
-      final matchAldeia = i.aldeiaAtual == aldeiaSelecionada;
+      final matchAldeia = aldeiaSelecionada == 'Todas as Aldeias' ||
+          i.aldeiaAtual == aldeiaSelecionada;
       final queryLower = buscaQuery.toLowerCase();
       final matchQuery = i.nome.toLowerCase().contains(queryLower) ||
           i.cns.contains(buscaQuery);
@@ -232,13 +307,14 @@ class _HomeScreenState extends State<HomeScreen> {
                             style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
                           subtitle: Text(
-                            'CNS: ${item.cns}\nIdade: ${item.idade} anos (${item.faixaEtaria})',
+                            'Aldeia: ${item.aldeiaAtual}\nCNS: ${item.cns}\nIdade: ${item.idade} anos (${item.faixaEtaria})',
                           ),
                           trailing: Wrap(
                             spacing: 8,
                             children: [
                               OutlinedButton.icon(
-                                icon: const Icon(Icons.vaccines, color: Colors.teal, size: 18),
+                                icon: const Icon(Icons.vaccines,
+                                    color: Colors.teal, size: 18),
                                 label: const Text('Vacinas'),
                                 onPressed: () => _abrirCartaoVacina(item),
                               ),
@@ -314,8 +390,10 @@ class _HomeScreenState extends State<HomeScreen> {
                         itemCount: indigena.vacinasTomadas.length,
                         itemBuilder: (context, i) {
                           final v = indigena.vacinasTomadas[i];
-                          final dia = v.dataAplicacao.day.toString().padLeft(2, '0');
-                          final mes = v.dataAplicacao.month.toString().padLeft(2, '0');
+                          final dia =
+                              v.dataAplicacao.day.toString().padLeft(2, '0');
+                          final mes =
+                              v.dataAplicacao.month.toString().padLeft(2, '0');
                           final ano = v.dataAplicacao.year;
 
                           return Card(
@@ -342,10 +420,12 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildAbaRelatorios() {
-    final atdData = atendimentos.where((a) =>
-        a.dataHora.year == dataRelatorio.year &&
-        a.dataHora.month == dataRelatorio.month &&
-        a.dataHora.day == dataRelatorio.day).toList();
+    final atdData = atendimentos
+        .where((a) =>
+            a.dataHora.year == dataRelatorio.year &&
+            a.dataHora.month == dataRelatorio.month &&
+            a.dataHora.day == dataRelatorio.day)
+        .toList();
 
     final Map<String, int> faixas = {
       '0 a 4 anos': 0,
@@ -376,7 +456,8 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               Text(
                 'Data: $dia/$mes/${dataRelatorio.year}',
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                style:
+                    const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               ElevatedButton.icon(
                 icon: const Icon(Icons.calendar_today),
@@ -401,10 +482,12 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  const Text('Total de Atendimentos:', style: TextStyle(fontSize: 16)),
+                  const Text('Total de Atendimentos:',
+                      style: TextStyle(fontSize: 16)),
                   Text(
                     '${atdData.length}',
-                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                        fontSize: 24, fontWeight: FontWeight.bold),
                   ),
                 ],
               ),
@@ -458,7 +541,8 @@ class _ModalAtendimentoDialog extends StatefulWidget {
   });
 
   @override
-  State<_ModalAtendimentoDialog> createState() => _ModalAtendimentoDialogState();
+  State<_ModalAtendimentoDialog> createState() =>
+      _ModalAtendimentoDialogState();
 }
 
 class _ModalAtendimentoDialogState extends State<_ModalAtendimentoDialog> {
@@ -489,7 +573,8 @@ class _ModalAtendimentoDialogState extends State<_ModalAtendimentoDialog> {
           children: [
             DropdownButtonFormField<String>(
               initialValue: _tipoSelecionado,
-              decoration: const InputDecoration(labelText: 'Tipo de Atendimento'),
+              decoration:
+                  const InputDecoration(labelText: 'Tipo de Atendimento'),
               items: _tiposAtendimento
                   .map((t) => DropdownMenuItem(value: t, child: Text(t)))
                   .toList(),
