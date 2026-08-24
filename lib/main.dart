@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
-import 'models/agente_funai.dart';
-import 'screens/home_screen.dart';
+import 'screens/login_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Inicializa o Firebase no dispositivo/navegador
+  // Inicializa a conexão com o Firebase
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
@@ -20,21 +19,14 @@ class SaudeIndigenaApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Agente de demonstração ajustado com todos os campos necessários
-    final agenteAtual = AgenteFunai(
-      nome: 'Maria Silva',
-      cargo: 'Agente Indígena de Saúde',
-      matricula: 'AIS-12345',
-    );
-
     return MaterialApp(
-      title: 'Saúde Indígena',
+      title: 'Saúde Indígena App',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF006A4E)),
         useMaterial3: true,
       ),
-      home: HomeScreen(agente: agenteAtual),
+      home: const LoginScreen(),
     );
   }
 }
