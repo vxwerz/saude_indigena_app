@@ -57,7 +57,6 @@ class DefaultFirebaseOptions {
     projectId: 'saude-indigena-app',
     storageBucket: 'saude-indigena-app.firebasestorage.app',
   );
-
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyD3-nys4ogse4VNcGoHsm9saqWeiRARvE0',
     appId: '1:334446623834:ios:5577362ee6eb49860d2c63',
@@ -66,7 +65,6 @@ class DefaultFirebaseOptions {
     storageBucket: 'saude-indigena-app.firebasestorage.app',
     iosBundleId: 'com.example.saudeIndigenaApp',
   );
-
   static const FirebaseOptions macos = FirebaseOptions(
     apiKey: 'AIzaSyD3-nys4ogse4VNcGoHsm9saqWeiRARvE0',
     appId: '1:334446623834:ios:5577362ee6eb49860d2c63',
