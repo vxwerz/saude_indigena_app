@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:saude_indigena_app/screens/login_screens.dart';
-import 'database/app_database.dart'; // 1. Importa o banco de dados
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
+import 'models/agente_funai.dart';
+import 'screens/home_screen.dart';
 
-// 2. Cria a variável global do banco para ser usada em qualquer tela
-late AppDatabase database;
-
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // 3. Inicializa a conexão com o SQLite local
-  database = AppDatabase();
+
+  // Inicializa o Firebase no dispositivo/navegador
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
 
   runApp(const SaudeIndigenaApp());
 }
@@ -19,14 +20,21 @@ class SaudeIndigenaApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Agente de demonstração ajustado com todos os campos necessários
+    final agenteAtual = AgenteFunai(
+      nome: 'Maria Silva',
+      cargo: 'Agente Indígena de Saúde',
+      matricula: 'AIS-12345',
+    );
+
     return MaterialApp(
-      title: 'Saúde Indígena App',
+      title: 'Saúde Indígena',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorSchemeSeed: const Color(0xFF006A4E),
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF006A4E)),
         useMaterial3: true,
       ),
-      home: const LoginScreen(),
+      home: HomeScreen(agente: agenteAtual),
     );
   }
 }

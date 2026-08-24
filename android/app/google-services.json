@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "334446623834",
+    "project_id": "saude-indigena-app",
+    "storage_bucket": "saude-indigena-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:334446623834:android:c80c6c106fe8c0be0d2c63",
+        "android_client_info": {
+          "package_name": "com.example.saude_indigena_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBnsCiC2BkhD8z7Ru1O1fsqFwxUpAP-O9M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

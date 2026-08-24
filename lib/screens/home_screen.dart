@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/agente_funai.dart';
 
 // --- CLASSES DE MODELO ---
@@ -152,8 +153,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   String aldeiaSelecionada = 'Todas as Aldeias';
   String buscaQuery = '';
-  
-  // Data selecionada para o relatório mensal (mês e ano)
   DateTime mesRelatorio = DateTime.now();
 
   List<Indigena> indigenas = [];
@@ -173,7 +172,7 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  // --- CARREGAR E SALVAR DADOS NO DISPOSITIVO / NAVEGADOR ---
+  // --- ARMAZENAMENTO LOCAL ---
 
   Future<void> _carregarDadosPersistidos() async {
     final prefs = await SharedPreferences.getInstance();
@@ -235,7 +234,7 @@ class _HomeScreenState extends State<HomeScreen> {
     await prefs.setString('indigenas_locais', encoded);
   }
 
-  // --- DETECÇÃO DE CONEXÃO E SINCRONIZAÇÃO ---
+  // --- CONEXÃO E SINCRONIZAÇÃO NUVEM (FIRESTORE) ---
 
   void _monitorarConexao() {
     Connectivity().onConnectivityChanged.listen((ConnectivityResult result) {
@@ -255,20 +254,25 @@ class _HomeScreenState extends State<HomeScreen> {
     final pendentes = atendimentos.where((a) => !a.sincronizado).toList();
     if (pendentes.isEmpty) return;
 
-    await Future.delayed(const Duration(seconds: 1));
+    final firestore = FirebaseFirestore.instance;
 
-    setState(() {
-      for (var a in pendentes) {
-        a.sincronizado = true;
+    for (var a in pendentes) {
+      try {
+        await firestore.collection('atendimentos').doc(a.id).set(a.toJson());
+        setState(() {
+          a.sincronizado = true;
+        });
+      } catch (e) {
+        // Se houver erro de rede, continuará pendente
       }
-    });
+    }
 
     await _salvarAtendimentosLocalmente();
 
-    if (mounted) {
+    if (mounted && pendentes.any((a) => a.sincronizado)) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('${pendentes.length} atendimento(s) sincronizado(s) com a nuvem!'),
+          content: Text('${pendentes.where((a) => a.sincronizado).length} atendimento(s) sincronizado(s) com a nuvem!'),
           backgroundColor: Colors.green,
         ),
       );
@@ -522,15 +526,12 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildAbaRelatorios() {
-    // Filtra atendimentos do mês/ano selecionado
     final atdMes = atendimentos.where((a) =>
         a.dataHora.year == mesRelatorio.year &&
         a.dataHora.month == mesRelatorio.month).toList();
 
-    // Filtra meus atendimentos do mês
     final meusAtdMes = atdMes.where((a) => a.agenteNome == widget.agente.nome).toList();
 
-    // Distribuição por faixa etária no mês selecionado
     final Map<String, int> faixas = {
       '0-4': 0,
       '5-9': 0,
@@ -557,7 +558,7 @@ class _HomeScreenState extends State<HomeScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Mês de Referência: $mesNome / ${mesRelatorio.year}',
+                'Mês: $mesNome / ${mesRelatorio.year}',
                 style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
               ElevatedButton.icon(
@@ -785,7 +786,7 @@ class _ModalAtendimentoDialogState extends State<_ModalAtendimentoDialog> {
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text('Atendimento salvo localmente com sucesso!'),
+                      content: Text('Atendimento registrado com sucesso!'),
                     ),
                   );
                 },
