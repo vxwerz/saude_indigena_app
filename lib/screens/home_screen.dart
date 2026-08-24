@@ -164,7 +164,7 @@ class _HomeScreenState extends State<HomeScreen> {
         nome: 'Kawy Tupinambá',
         cns: '700102030405060',
         idade: 4,
-        faixaEtaria: '0 a 4 anos',
+        faixaEtaria: '0-4',
         aldeiaAtual: 'Tekoá-Miri',
         vacinasTomadas: [
           Vacina(
@@ -180,7 +180,7 @@ class _HomeScreenState extends State<HomeScreen> {
         nome: 'Moara Guarani',
         cns: '800908070605040',
         idade: 28,
-        faixaEtaria: '20 a 29 anos',
+        faixaEtaria: '20-29',
         aldeiaAtual: 'Itaóca Tupi',
         vacinasTomadas: [],
       ),
@@ -189,7 +189,7 @@ class _HomeScreenState extends State<HomeScreen> {
     atendimentos = [
       Atendimento(
         dataHora: DateTime.now(),
-        faixaEtaria: '0 a 4 anos',
+        faixaEtaria: '0-4',
         tipo: 'Consulta Médica',
       ),
     ];
@@ -307,7 +307,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
                           subtitle: Text(
-                            'Aldeia: ${item.aldeiaAtual}\nCNS: ${item.cns}\nIdade: ${item.idade} anos (${item.faixaEtaria})',
+                            'Aldeia: ${item.aldeiaAtual}\nCNS: ${item.cns}\nIdade: ${item.idade} anos (Faixa: ${item.faixaEtaria})',
                           ),
                           trailing: Wrap(
                             spacing: 8,
@@ -427,12 +427,13 @@ class _HomeScreenState extends State<HomeScreen> {
             a.dataHora.day == dataRelatorio.day)
         .toList();
 
+    // Faixas etárias exatamente iguais ao formulário da SESAI
     final Map<String, int> faixas = {
-      '0 a 4 anos': 0,
-      '5 a 9 anos': 0,
-      '10 a 19 anos': 0,
-      '20 a 29 anos': 0,
-      '30 a 59 anos': 0,
+      '0-4': 0,
+      '5-9': 0,
+      '10-19': 0,
+      '20-29': 0,
+      '30-59': 0,
       '60+': 0,
     };
 
@@ -495,7 +496,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 20),
           const Text(
-            'Distribuição por Faixa Etária:',
+            'Distribuição por Faixa Etária (DSEI):',
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 10),
