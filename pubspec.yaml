@@ -11,10 +11,11 @@ dependencies:
   flutter:
     sdk: flutter
 
-  # Pacotes que você já usa ou vai usar
+  # Pacotes de armazenamento e conectividade
   shared_preferences: ^2.2.2
-  
-  # PACOTES DO BANCO DE DADOS (Adicione estas linhas abaixo)
+  connectivity_plus: ^5.0.2
+
+  # Pacotes de Banco de Dados Local (Drift/SQLite)
   drift: ^2.18.0
   sqlite3_flutter_libs: ^0.5.20
   path_provider: ^2.1.2
@@ -25,7 +26,7 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^3.0.0
 
-  # GERADORES DE CÓDIGO DO BANCO (Adicione estas linhas abaixo)
+  # Geradores de Código do Banco
   drift_dev: ^2.18.0
   build_runner: ^2.4.9
 

@@ -1,66 +1,10 @@
-import 'package:flutter/material.dart'
-    show
-        AlertDialog,
-        AppBar,
-        BorderRadius,
-        BuildContext,
-        Card,
-        Center,
-        Chip,
-        CircularProgressIndicator,
-        Color,
-        Colors,
-        Column,
-        Container,
-        CrossAxisAlignment,
-        DefaultTabController,
-        Divider,
-        DropdownButtonFormField,
-        DropdownMenuItem,
-        EdgeInsets,
-        ElevatedButton,
-        Expanded,
-        FontWeight,
-        Icon,
-        IconButton,
-        Icons,
-        InputDecoration,
-        ListTile,
-        ListView,
-        MainAxisAlignment,
-        MainAxisSize,
-        MediaQuery,
-        Navigator,
-        OutlineInputBorder,
-        OutlinedButton,
-        Padding,
-        Radius,
-        RoundedRectangleBorder,
-        Row,
-        Scaffold,
-        ScaffoldMessenger,
-        SingleChildScrollView,
-        SizedBox,
-        SnackBar,
-        State,
-        StatefulWidget,
-        Tab,
-        TabBar,
-        TabBarView,
-        Text,
-        TextButton,
-        TextEditingController,
-        TextField,
-        TextOverflow,
-        TextStyle,
-        Widget,
-        Wrap,
-        showDatePicker,
-        showDialog,
-        showModalBottomSheet;
+import 'dart:convert';
+import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import '../models/agente_funai.dart';
 
-// --- CLASSES DE MODELO ---
+// --- CLASSES DE MODELO COM SUPORTE A JSON E SINCRONIZAÇÃO ---
 
 class Vacina {
   final String nome;
@@ -76,6 +20,22 @@ class Vacina {
     required this.dataAplicacao,
     required this.aplicador,
   });
+
+  Map<String, dynamic> toJson() => {
+        'nome': nome,
+        'dose': dose,
+        'lote': lote,
+        'dataAplicacao': dataAplicacao.toIso8601String(),
+        'aplicador': aplicador,
+      };
+
+  factory Vacina.fromJson(Map<String, dynamic> json) => Vacina(
+        nome: json['nome'],
+        dose: json['dose'],
+        lote: json['lote'],
+        dataAplicacao: DateTime.parse(json['dataAplicacao']),
+        aplicador: json['aplicador'],
+      );
 }
 
 class Indigena {
@@ -94,18 +54,66 @@ class Indigena {
     required this.aldeiaAtual,
     required this.vacinasTomadas,
   });
+
+  Map<String, dynamic> toJson() => {
+        'nome': nome,
+        'cns': cns,
+        'idade': idade,
+        'faixaEtaria': faixaEtaria,
+        'aldeiaAtual': aldeiaAtual,
+        'vacinasTomadas': vacinasTomadas.map((v) => v.toJson()).toList(),
+      };
+
+  factory Indigena.fromJson(Map<String, dynamic> json) => Indigena(
+        nome: json['nome'],
+        cns: json['cns'],
+        idade: json['idade'],
+        faixaEtaria: json['faixaEtaria'],
+        aldeiaAtual: json['aldeiaAtual'],
+        vacinasTomadas: (json['vacinasTomadas'] as List)
+            .map((v) => Vacina.fromJson(v))
+            .toList(),
+      );
 }
 
 class Atendimento {
+  final String id;
   final DateTime dataHora;
   final String faixaEtaria;
   final String tipo;
+  final String observacao;
+  final String indigenaCns;
+  bool sincronizado;
 
   Atendimento({
+    required this.id,
     required this.dataHora,
     required this.faixaEtaria,
     required this.tipo,
+    required this.observacao,
+    required this.indigenaCns,
+    this.sincronizado = false,
   });
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'dataHora': dataHora.toIso8601String(),
+        'faixaEtaria': faixaEtaria,
+        'tipo': tipo,
+        'observacao': observacao,
+        'indigenaCns': indigenaCns,
+        'sincronizado': sincronizado,
+      };
+
+  factory Atendimento.fromJson(Map<String, dynamic> json) => Atendimento(
+        id: json['id'],
+        dataHora: DateTime.parse(json['dataHora']),
+        faixaEtaria: json['faixaEtaria'],
+        tipo: json['tipo'],
+        observacao: json['observacao'] ?? '',
+        indigenaCns: json['indigenaCns'] ?? '',
+        sincronizado: json['sincronizado'] ?? false,
+      );
 }
 
 // --- TELA PRINCIPAL (HomeScreen) ---
@@ -125,7 +133,6 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _buscaController = TextEditingController();
 
-  // Lista oficial de aldeias do DSEI Litoral Sul / SESAI
   final List<String> aldeias = const [
     'Todas as Aldeias',
     'Aguapeú',
@@ -145,11 +152,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
   List<Indigena> indigenas = [];
   List<Atendimento> atendimentos = [];
+  bool estaOnline = false;
 
   @override
   void initState() {
     super.initState();
-    _carregarDadosIniciais();
+    _inicializarDadosEPersistencia();
+    _monitorarConexao();
   }
 
   @override
@@ -158,59 +167,139 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  void _carregarDadosIniciais() {
-    indigenas = [
-      Indigena(
-        nome: 'Kawy Tupinambá',
-        cns: '700102030405060',
-        idade: 4,
-        faixaEtaria: '0-4',
-        aldeiaAtual: 'Tekoá-Miri',
-        vacinasTomadas: [
-          Vacina(
-            nome: 'BCG',
-            dose: 'Dose Única',
-            lote: 'BCG2023',
-            dataAplicacao: DateTime.now().subtract(const Duration(days: 300)),
-            aplicador: 'Enf. Juliana',
-          ),
-        ],
-      ),
-      Indigena(
-        nome: 'Moara Guarani',
-        cns: '800908070605040',
-        idade: 28,
-        faixaEtaria: '20-29',
-        aldeiaAtual: 'Itaóca Tupi',
-        vacinasTomadas: [],
-      ),
-    ];
+  // --- CARREGAR E SALVAR DADOS NO DISPOSITIVO (LOCALSTORAGE) ---
 
-    atendimentos = [
-      Atendimento(
-        dataHora: DateTime.now(),
-        faixaEtaria: '0-4',
-        tipo: 'Consulta Médica',
-      ),
-    ];
+  Future<void> _inicializarDadosEPersistencia() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    final String? atdJson = prefs.getString('atendimentos_locais');
+    if (atdJson != null) {
+      final List decoded = jsonDecode(atdJson);
+      setState(() {
+        atendimentos = decoded.map((e) => Atendimento.fromJson(e)).toList();
+      });
+    }
+
+    final String? indJson = prefs.getString('indigenas_locais');
+    if (indJson != null) {
+      final List decoded = jsonDecode(indJson);
+      setState(() {
+        indigenas = decoded.map((e) => Indigena.fromJson(e)).toList();
+      });
+    } else {
+      // Dados de teste padrões caso o banco esteja limpo
+      indigenas = [
+        Indigena(
+          nome: 'Kawy Tupinambá',
+          cns: '700102030405060',
+          idade: 4,
+          faixaEtaria: '0-4',
+          aldeiaAtual: 'Tekoá-Miri',
+          vacinasTomadas: [
+            Vacina(
+              nome: 'BCG',
+              dose: 'Dose Única',
+              lote: 'BCG2023',
+              dataAplicacao: DateTime.now().subtract(const Duration(days: 300)),
+              aplicador: 'Enf. Juliana',
+            ),
+          ],
+        ),
+        Indigena(
+          nome: 'Moara Guarani',
+          cns: '800908070605040',
+          idade: 28,
+          faixaEtaria: '20-29',
+          aldeiaAtual: 'Itaóca Tupi',
+          vacinasTomadas: [],
+        ),
+      ];
+      _salvarIndigenasLocalmente();
+    }
+  }
+
+  Future<void> _salvarAtendimentosLocalmente() async {
+    final prefs = await SharedPreferences.getInstance();
+    final String encoded = jsonEncode(atendimentos.map((a) => a.toJson()).toList());
+    await prefs.setString('atendimentos_locais', encoded);
+  }
+
+  Future<void> _salvarIndigenasLocalmente() async {
+    final prefs = await SharedPreferences.getInstance();
+    final String encoded = jsonEncode(indigenas.map((i) => i.toJson()).toList());
+    await prefs.setString('indigenas_locais', encoded);
+  }
+
+  // --- DETECÇÃO DE CONEXÃO E SINCRONIZAÇÃO COM A NUVEM ---
+
+  void _monitorarConexao() {
+    Connectivity().onConnectivityChanged.listen((ConnectivityResult result) {
+      bool online = (result == ConnectivityResult.mobile ||
+          result == ConnectivityResult.wifi ||
+          result == ConnectivityResult.ethernet);
+
+      setState(() => estaOnline = online);
+
+      if (online) {
+        _sincronizarComNuvem();
+      }
+    });
+  }
+
+  Future<void> _sincronizarComNuvem() async {
+    final pendentes = atendimentos.where((a) => !a.sincronizado).toList();
+
+    if (pendentes.isEmpty) return;
+
+    // AQUI SERÁ A CHAMADA PARA A API DO BANCO NA NUVEM (Firebase / PostgreSQL)
+    // Exemplo simulando envio para nuvem:
+    await Future.delayed(const Duration(seconds: 2));
+
+    setState(() {
+      for (var a in pendentes) {
+        a.sincronizado = true;
+      }
+    });
+
+    await _salvarAtendimentosLocalmente();
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${pendentes.length} atendimento(s) sincronizado(s) com a nuvem!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
   }
 
   Future<void> _registrarAtendimento(
       Indigena indigena, String tipo, String observacao) async {
-    await Future.delayed(const Duration(milliseconds: 500));
+    final novoAtendimento = Atendimento(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      dataHora: DateTime.now(),
+      faixaEtaria: indigena.faixaEtaria,
+      tipo: tipo,
+      observacao: observacao,
+      indigenaCns: indigena.cns,
+      sincronizado: false, // Inicia offline
+    );
+
     setState(() {
-      atendimentos.add(
-        Atendimento(
-          dataHora: DateTime.now(),
-          faixaEtaria: indigena.faixaEtaria,
-          tipo: tipo,
-        ),
-      );
+      atendimentos.add(novoAtendimento);
     });
+
+    await _salvarAtendimentosLocalmente();
+
+    if (estaOnline) {
+      _sincronizarComNuvem();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    int naoSincronizados = atendimentos.where((a) => !a.sincronizado).length;
+
     return DefaultTabController(
       length: 2,
       child: Scaffold(
@@ -220,10 +309,20 @@ class _HomeScreenState extends State<HomeScreen> {
           title: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Saúde Indígena',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              Row(
+                children: [
+                  const Text('Saúde Indígena',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  const SizedBox(width: 8),
+                  Icon(
+                    estaOnline ? Icons.wifi : Icons.wifi_off,
+                    size: 16,
+                    color: estaOnline ? Colors.greenAccent : Colors.orangeAccent,
+                  ),
+                ],
+              ),
               Text(
-                '${widget.agente.nome} (${widget.agente.cargo})',
+                '${widget.agente.nome} (${widget.agente.cargo}) ${naoSincronizados > 0 ? "• $naoSincronizados pendentes" : ""}',
                 style: const TextStyle(
                     fontSize: 12, fontWeight: FontWeight.normal),
               ),
@@ -427,7 +526,6 @@ class _HomeScreenState extends State<HomeScreen> {
             a.dataHora.day == dataRelatorio.day)
         .toList();
 
-    // Faixas etárias exatamente iguais ao formulário da SESAI
     final Map<String, int> faixas = {
       '0-4': 0,
       '5-9': 0,
@@ -616,7 +714,7 @@ class _ModalAtendimentoDialogState extends State<_ModalAtendimentoDialog> {
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text('Atendimento registrado com sucesso!'),
+                      content: Text('Atendimento salvo localmente com sucesso!'),
                     ),
                   );
                 },
