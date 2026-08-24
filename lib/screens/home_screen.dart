@@ -4,7 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import '../models/agente_funai.dart';
 
-// --- CLASSES DE MODELO COM SUPORTE A JSON E SINCRONIZAÇÃO ---
+// --- CLASSES DE MODELO ---
 
 class Vacina {
   final String nome;
@@ -83,6 +83,7 @@ class Atendimento {
   final String tipo;
   final String observacao;
   final String indigenaCns;
+  final String agenteNome;
   bool sincronizado;
 
   Atendimento({
@@ -92,6 +93,7 @@ class Atendimento {
     required this.tipo,
     required this.observacao,
     required this.indigenaCns,
+    required this.agenteNome,
     this.sincronizado = false,
   });
 
@@ -102,6 +104,7 @@ class Atendimento {
         'tipo': tipo,
         'observacao': observacao,
         'indigenaCns': indigenaCns,
+        'agenteNome': agenteNome,
         'sincronizado': sincronizado,
       };
 
@@ -112,6 +115,7 @@ class Atendimento {
         tipo: json['tipo'],
         observacao: json['observacao'] ?? '',
         indigenaCns: json['indigenaCns'] ?? '',
+        agenteNome: json['agenteNome'] ?? 'Agente',
         sincronizado: json['sincronizado'] ?? false,
       );
 }
@@ -148,7 +152,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   String aldeiaSelecionada = 'Todas as Aldeias';
   String buscaQuery = '';
-  DateTime dataRelatorio = DateTime.now();
+  
+  // Data selecionada para o relatório mensal (mês e ano)
+  DateTime mesRelatorio = DateTime.now();
 
   List<Indigena> indigenas = [];
   List<Atendimento> atendimentos = [];
@@ -157,7 +163,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _inicializarDadosEPersistencia();
+    _carregarDadosPersistidos();
     _monitorarConexao();
   }
 
@@ -167,13 +173,13 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  // --- CARREGAR E SALVAR DADOS NO DISPOSITIVO (LOCALSTORAGE) ---
+  // --- CARREGAR E SALVAR DADOS NO DISPOSITIVO / NAVEGADOR ---
 
-  Future<void> _inicializarDadosEPersistencia() async {
+  Future<void> _carregarDadosPersistidos() async {
     final prefs = await SharedPreferences.getInstance();
 
     final String? atdJson = prefs.getString('atendimentos_locais');
-    if (atdJson != null) {
+    if (atdJson != null && atdJson.isNotEmpty) {
       final List decoded = jsonDecode(atdJson);
       setState(() {
         atendimentos = decoded.map((e) => Atendimento.fromJson(e)).toList();
@@ -181,13 +187,12 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     final String? indJson = prefs.getString('indigenas_locais');
-    if (indJson != null) {
+    if (indJson != null && indJson.isNotEmpty) {
       final List decoded = jsonDecode(indJson);
       setState(() {
         indigenas = decoded.map((e) => Indigena.fromJson(e)).toList();
       });
     } else {
-      // Dados de teste padrões caso o banco esteja limpo
       indigenas = [
         Indigena(
           nome: 'Kawy Tupinambá',
@@ -214,7 +219,7 @@ class _HomeScreenState extends State<HomeScreen> {
           vacinasTomadas: [],
         ),
       ];
-      _salvarIndigenasLocalmente();
+      await _salvarIndigenasLocalmente();
     }
   }
 
@@ -230,7 +235,7 @@ class _HomeScreenState extends State<HomeScreen> {
     await prefs.setString('indigenas_locais', encoded);
   }
 
-  // --- DETECÇÃO DE CONEXÃO E SINCRONIZAÇÃO COM A NUVEM ---
+  // --- DETECÇÃO DE CONEXÃO E SINCRONIZAÇÃO ---
 
   void _monitorarConexao() {
     Connectivity().onConnectivityChanged.listen((ConnectivityResult result) {
@@ -248,12 +253,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _sincronizarComNuvem() async {
     final pendentes = atendimentos.where((a) => !a.sincronizado).toList();
-
     if (pendentes.isEmpty) return;
 
-    // AQUI SERÁ A CHAMADA PARA A API DO BANCO NA NUVEM (Firebase / PostgreSQL)
-    // Exemplo simulando envio para nuvem:
-    await Future.delayed(const Duration(seconds: 2));
+    await Future.delayed(const Duration(seconds: 1));
 
     setState(() {
       for (var a in pendentes) {
@@ -282,7 +284,8 @@ class _HomeScreenState extends State<HomeScreen> {
       tipo: tipo,
       observacao: observacao,
       indigenaCns: indigena.cns,
-      sincronizado: false, // Inicia offline
+      agenteNome: widget.agente.nome,
+      sincronizado: false,
     );
 
     setState(() {
@@ -334,7 +337,7 @@ class _HomeScreenState extends State<HomeScreen> {
             unselectedLabelColor: Colors.white70,
             tabs: [
               Tab(icon: Icon(Icons.medical_services), text: 'Atendimentos'),
-              Tab(icon: Icon(Icons.bar_chart), text: 'Relatórios'),
+              Tab(icon: Icon(Icons.bar_chart), text: 'Relatório Mensal'),
             ],
           ),
         ),
@@ -519,13 +522,15 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildAbaRelatorios() {
-    final atdData = atendimentos
-        .where((a) =>
-            a.dataHora.year == dataRelatorio.year &&
-            a.dataHora.month == dataRelatorio.month &&
-            a.dataHora.day == dataRelatorio.day)
-        .toList();
+    // Filtra atendimentos do mês/ano selecionado
+    final atdMes = atendimentos.where((a) =>
+        a.dataHora.year == mesRelatorio.year &&
+        a.dataHora.month == mesRelatorio.month).toList();
 
+    // Filtra meus atendimentos do mês
+    final meusAtdMes = atdMes.where((a) => a.agenteNome == widget.agente.nome).toList();
+
+    // Distribuição por faixa etária no mês selecionado
     final Map<String, int> faixas = {
       '0-4': 0,
       '5-9': 0,
@@ -535,15 +540,13 @@ class _HomeScreenState extends State<HomeScreen> {
       '60+': 0,
     };
 
-    for (var a in atdData) {
-      final faixa = a.faixaEtaria;
-      if (faixas.containsKey(faixa)) {
-        faixas[faixa] = faixas[faixa]! + 1;
+    for (var a in atdMes) {
+      if (faixas.containsKey(a.faixaEtaria)) {
+        faixas[a.faixaEtaria] = faixas[a.faixaEtaria]! + 1;
       }
     }
 
-    final dia = dataRelatorio.day.toString().padLeft(2, '0');
-    final mes = dataRelatorio.month.toString().padLeft(2, '0');
+    final mesNome = _getMesNome(mesRelatorio.month);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
@@ -554,50 +557,100 @@ class _HomeScreenState extends State<HomeScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Data: $dia/$mes/${dataRelatorio.year}',
-                style:
-                    const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                'Mês de Referência: $mesNome / ${mesRelatorio.year}',
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
               ElevatedButton.icon(
-                icon: const Icon(Icons.calendar_today),
-                label: const Text('Alterar Data'),
+                icon: const Icon(Icons.calendar_month),
+                label: const Text('Alterar Mês'),
                 onPressed: () async {
                   final picked = await showDatePicker(
                     context: context,
-                    initialDate: dataRelatorio,
+                    initialDate: mesRelatorio,
                     firstDate: DateTime(2020),
                     lastDate: DateTime.now(),
+                    helpText: 'Selecione qualquer dia do mês desejado',
                   );
-                  if (picked != null) setState(() => dataRelatorio = picked);
+                  if (picked != null) {
+                    setState(() => mesRelatorio = picked);
+                  }
                 },
               ),
             ],
           ),
-          const SizedBox(height: 20),
-          Card(
-            color: Colors.teal.shade50,
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  const Text('Total de Atendimentos:',
-                      style: TextStyle(fontSize: 16)),
-                  Text(
-                    '${atdData.length}',
-                    style: const TextStyle(
-                        fontSize: 24, fontWeight: FontWeight.bold),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: Card(
+                  color: Colors.teal.shade50,
+                  child: Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Column(
+                      children: [
+                        const Text(
+                          'Meus Atendimentos',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          '${meusAtdMes.length}',
+                          style: const TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF006A4E),
+                          ),
+                        ),
+                        Text(
+                          'Agente: ${widget.agente.nome}',
+                          style: const TextStyle(fontSize: 10, color: Colors.black54),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
                   ),
-                ],
+                ),
               ),
-            ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Card(
+                  color: Colors.blue.shade50,
+                  child: Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Column(
+                      children: [
+                        const Text(
+                          'Total Geral das Aldeias',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          '${atdMes.length}',
+                          style: const TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.blueAccent,
+                          ),
+                        ),
+                        const Text(
+                          'Todos os Agentes',
+                          style: TextStyle(fontSize: 10, color: Colors.black54),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 20),
           const Text(
-            'Distribuição por Faixa Etária (DSEI):',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            'Atendimentos por Faixa Etária (Mês):',
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -611,6 +664,24 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
     );
+  }
+
+  String _getMesNome(int mes) {
+    const meses = [
+      'Janeiro',
+      'Fevereiro',
+      'Março',
+      'Abril',
+      'Maio',
+      'Junho',
+      'Julho',
+      'Agosto',
+      'Setembro',
+      'Outubro',
+      'Novembro',
+      'Dezembro'
+    ];
+    return meses[mes - 1];
   }
 
   void _abrirModalAtendimento(Indigena indigena) {
