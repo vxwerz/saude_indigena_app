@@ -52,7 +52,8 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _fazerLogin() {
-    if (_matriculaController.text.isNotEmpty && _senhaController.text.isNotEmpty) {
+    if (_matriculaController.text.isNotEmpty &&
+        _senhaController.text.isNotEmpty) {
       final agente = AgenteFunai(
         matricula: _matriculaController.text,
         nome: 'Maria Silva',
