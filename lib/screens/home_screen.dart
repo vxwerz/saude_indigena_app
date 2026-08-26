@@ -5,8 +5,6 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/agente_funai.dart';
 
-// --- CLASSES DE MODELO ---
-
 class Vacina {
   final String nome;
   final String dose;
@@ -113,15 +111,13 @@ class Atendimento {
         id: json['id'],
         dataHora: DateTime.parse(json['dataHora']),
         faixaEtaria: json['faixaEtaria'],
-        tipo: json['tipo'],
+        tipo: json['tipo'] ?? 'Consulta Médica', // CORRIGIDO AQUI
         observacao: json['observacao'] ?? '',
         indigenaCns: json['indigenaCns'] ?? '',
         agenteNome: json['agenteNome'] ?? 'Agente',
         sincronizado: json['sincronizado'] ?? false,
       );
 }
-
-// --- TELA PRINCIPAL (HomeScreen) ---
 
 class HomeScreen extends StatefulWidget {
   final AgenteFunai agente;
@@ -171,8 +167,6 @@ class _HomeScreenState extends State<HomeScreen> {
     _buscaController.dispose();
     super.dispose();
   }
-
-  // --- ARMAZENAMENTO LOCAL ---
 
   Future<void> _carregarDadosPersistidos() async {
     final prefs = await SharedPreferences.getInstance();
@@ -234,8 +228,6 @@ class _HomeScreenState extends State<HomeScreen> {
     await prefs.setString('indigenas_locais', encoded);
   }
 
-  // --- CONEXÃO E SINCRONIZAÇÃO NUVEM (FIRESTORE) ---
-
   void _monitorarConexao() {
     Connectivity().onConnectivityChanged.listen((ConnectivityResult result) {
       bool online = (result == ConnectivityResult.mobile ||
@@ -263,7 +255,7 @@ class _HomeScreenState extends State<HomeScreen> {
           a.sincronizado = true;
         });
       } catch (e) {
-        // Se houver erro de rede, continuará pendente
+        // Mantém pendente para próxima tentativa
       }
     }
 
@@ -298,8 +290,19 @@ class _HomeScreenState extends State<HomeScreen> {
 
     await _salvarAtendimentosLocalmente();
 
-    if (estaOnline) {
-      _sincronizarComNuvem();
+    try {
+      await FirebaseFirestore.instance
+          .collection('atendimentos')
+          .doc(novoAtendimento.id)
+          .set(novoAtendimento.toJson());
+
+      setState(() {
+        novoAtendimento.sincronizado = true;
+      });
+
+      await _salvarAtendimentosLocalmente();
+    } catch (e) {
+      // Falha ao enviar fica gravada localmente e tentará novamente via listener de conectividade
     }
   }
 
@@ -370,7 +373,7 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         children: [
           DropdownButtonFormField<String>(
-            initialValue: aldeiaSelecionada,
+            initialValue: aldeiaSelecionada, // CORRIGIDO AQUI (substituído 'value' por 'initialValue')
             decoration: const InputDecoration(
               labelText: 'Selecione a Aldeia',
               border: OutlineInputBorder(),
@@ -700,8 +703,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-// --- DIÁLOGO DE ATENDIMENTO ---
-
 class _ModalAtendimentoDialog extends StatefulWidget {
   final Indigena indigena;
   final Future<void> Function(String tipo, String obs) onSalvar;
@@ -709,7 +710,7 @@ class _ModalAtendimentoDialog extends StatefulWidget {
   const _ModalAtendimentoDialog({
     required this.indigena,
     required this.onSalvar,
-  });
+  }); // CORRIGIDO AQUI (removido super.key não utilizado)
 
   @override
   State<_ModalAtendimentoDialog> createState() =>
@@ -734,6 +735,37 @@ class _ModalAtendimentoDialogState extends State<_ModalAtendimentoDialog> {
     super.dispose();
   }
 
+  Future<void> _submeterFormulario() async {
+    setState(() => _carregando = true);
+
+    try {
+      await widget.onSalvar(_tipoSelecionado, _obsController.text.trim());
+
+      if (!mounted) return;
+
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Atendimento registrado com sucesso!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erro ao registrar atendimento: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _carregando = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
@@ -743,19 +775,22 @@ class _ModalAtendimentoDialogState extends State<_ModalAtendimentoDialog> {
           mainAxisSize: MainAxisSize.min,
           children: [
             DropdownButtonFormField<String>(
-              initialValue: _tipoSelecionado,
+              initialValue: _tipoSelecionado, // CORRIGIDO AQUI (substituído 'value' por 'initialValue')
               decoration:
                   const InputDecoration(labelText: 'Tipo de Atendimento'),
               items: _tiposAtendimento
                   .map((t) => DropdownMenuItem(value: t, child: Text(t)))
                   .toList(),
-              onChanged: (v) {
-                if (v != null) setState(() => _tipoSelecionado = v);
-              },
+              onChanged: _carregando
+                  ? null
+                  : (v) {
+                      if (v != null) setState(() => _tipoSelecionado = v);
+                    },
             ),
             const SizedBox(height: 12),
             TextField(
               controller: _obsController,
+              enabled: !_carregando,
               decoration: const InputDecoration(
                 labelText: 'Observações / Diagnóstico',
               ),
@@ -774,22 +809,7 @@ class _ModalAtendimentoDialogState extends State<_ModalAtendimentoDialog> {
             backgroundColor: const Color(0xFF006A4E),
             foregroundColor: Colors.white,
           ),
-          onPressed: _carregando
-              ? null
-              : () async {
-                  setState(() => _carregando = true);
-
-                  await widget.onSalvar(_tipoSelecionado, _obsController.text);
-
-                  if (!context.mounted) return;
-
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Atendimento registrado com sucesso!'),
-                    ),
-                  );
-                },
+          onPressed: _carregando ? null : _submeterFormulario,
           child: _carregando
               ? const SizedBox(
                   width: 20,

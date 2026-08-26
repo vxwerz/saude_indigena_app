@@ -1,1 +1,39 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"saude-indigena-app","appId":"1:334446623834:android:c80c6c106fe8c0be0d2c63","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"saude-indigena-app","configurations":{"android":"1:334446623834:android:c80c6c106fe8c0be0d2c63","ios":"1:334446623834:ios:5577362ee6eb49860d2c63","macos":"1:334446623834:ios:5577362ee6eb49860d2c63","web":"1:334446623834:web:6c4d42b42d9d58a80d2c63","windows":"1:334446623834:web:bc83085b1a713e5b0d2c63"}}}}}}
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "saude-indigena-app",
+          "appId": "1:334446623834:android:c80c6c106fe8c0be0d2c63",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "saude-indigena-app",
+          "configurations": {
+            "android": "1:334446623834:android:c80c6c106fe8c0be0d2c63",
+            "ios": "1:334446623834:ios:5577362ee6eb49860d2c63",
+            "macos": "1:334446623834:ios:5577362ee6eb49860d2c63",
+            "web": "1:334446623834:web:6c4d42b42d9d58a80d2c63",
+            "windows": "1:334446623834:web:bc83085b1a713e5b0d2c63"
+          }
+        }
+      }
+    }
+  },
+  "hosting": {
+    "public": "build/web",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}

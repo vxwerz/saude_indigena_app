@@ -1,32 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'firebase_options.dart';
-
-// Imports dos seus modelos e telas restantes
-import 'models/agente_funai.dart';
-import 'screens/home_screen.dart';
+import 'package:saude_indigena_app/screens/home_screen.dart';
+import 'package:saude_indigena_app/models/agente_funai.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-
-  runApp(const SaudeIndigenaApp());
+  await Firebase.initializeApp(); // Conexão com o Firebase ativada
+  runApp(const MyApp());
 }
 
-class SaudeIndigenaApp extends StatelessWidget {
-  const SaudeIndigenaApp({super.key});
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Saúde Indígena App',
+      title: 'Saúde Indígena',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF006A4E)),
-        useMaterial3: true,
+        primaryColor: const Color(0xFF006644),
+        scaffoldBackgroundColor: const Color(0xFFF4F6F8),
       ),
       home: const LoginScreen(),
     );
@@ -41,107 +34,38 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _matriculaController = TextEditingController(text: 'FUNAI-8842');
-  final _senhaController = TextEditingController(text: '123456');
+  void _entrarNoSistema() {
+    final agente = AgenteFunai(
+      nome: 'Carlos Silva',
+      cargo: 'Agente de Saúde Indígena',
+      matricula: '123456-A',
+    );
 
-  @override
-  void dispose() {
-    _matriculaController.dispose();
-    _senhaController.dispose();
-    super.dispose();
-  }
-
-  void _fazerLogin() {
-    if (_matriculaController.text.isNotEmpty &&
-        _senhaController.text.isNotEmpty) {
-      final agente = AgenteFunai(
-        matricula: _matriculaController.text,
-        nome: 'Maria Silva',
-        cargo: 'Agente Indigenista de Saúde',
-      );
-
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => HomeScreen(agente: agente),
-        ),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Informe a matrícula e senha')),
-      );
-    }
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => HomeScreen(agente: agente),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF006A4E),
+      appBar: AppBar(
+        title: const Text('Login'),
+        backgroundColor: const Color(0xFF006644),
+      ),
       body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
-          child: Card(
-            elevation: 8,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.health_and_safety,
-                    size: 64,
-                    color: Color(0xFF006A4E),
-                  ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'Saúde Indígena App',
-                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                  ),
-                  const Text(
-                    'Acesso do Agente FUNAI / DSEI',
-                    style: TextStyle(color: Colors.grey),
-                  ),
-                  const SizedBox(height: 24),
-                  TextField(
-                    controller: _matriculaController,
-                    decoration: const InputDecoration(
-                      labelText: 'Matrícula FUNAI / CPF',
-                      prefixIcon: Icon(Icons.badge),
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: _senhaController,
-                    obscureText: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Senha',
-                      prefixIcon: Icon(Icons.lock),
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 48,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF006A4E),
-                        foregroundColor: Colors.white,
-                      ),
-                      onPressed: _fazerLogin,
-                      child: const Text(
-                        'ENTRAR NO SISTEMA',
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+        child: ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF006644),
+            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+          ),
+          onPressed: _entrarNoSistema,
+          child: const Text(
+            'Entrar no Sistema',
+            style: TextStyle(color: Colors.white, fontSize: 16),
           ),
         ),
       ),
