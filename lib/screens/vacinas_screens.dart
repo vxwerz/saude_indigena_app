@@ -53,7 +53,6 @@ class _VacinasScreenState extends State<VacinasScreen> {
       widget.indigena.vacinasTomadas.add(novaVacina);
     });
 
-    // Notifica a HomeScreen para persistir localmente e sincronizar na nuvem
     if (widget.onVacinaAplicada != null) {
       widget.onVacinaAplicada!(widget.indigena);
     }
@@ -111,7 +110,7 @@ class _VacinasScreenState extends State<VacinasScreen> {
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
-                    value: _doseSelecionada, // Atualizado de initialValue para value
+                    initialValue: _doseSelecionada,
                     decoration: const InputDecoration(
                       labelText: 'Dose',
                       prefixIcon: Icon(Icons.format_list_numbered),
