@@ -1,123 +1,14 @@
+import 'dart:async';
 import 'dart:convert';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+
 import '../models/agente_funai.dart';
-
-class Vacina {
-  final String nome;
-  final String dose;
-  final String lote;
-  final DateTime dataAplicacao;
-  final String aplicador;
-
-  Vacina({
-    required this.nome,
-    required this.dose,
-    required this.lote,
-    required this.dataAplicacao,
-    required this.aplicador,
-  });
-
-  Map<String, dynamic> toJson() => {
-        'nome': nome,
-        'dose': dose,
-        'lote': lote,
-        'dataAplicacao': dataAplicacao.toIso8601String(),
-        'aplicador': aplicador,
-      };
-
-  factory Vacina.fromJson(Map<String, dynamic> json) => Vacina(
-        nome: json['nome'],
-        dose: json['dose'],
-        lote: json['lote'],
-        dataAplicacao: DateTime.parse(json['dataAplicacao']),
-        aplicador: json['aplicador'],
-      );
-}
-
-class Indigena {
-  final String nome;
-  final String cns;
-  final int idade;
-  final String faixaEtaria;
-  final String aldeiaAtual;
-  final List<Vacina> vacinasTomadas;
-
-  Indigena({
-    required this.nome,
-    required this.cns,
-    required this.idade,
-    required this.faixaEtaria,
-    required this.aldeiaAtual,
-    required this.vacinasTomadas,
-  });
-
-  Map<String, dynamic> toJson() => {
-        'nome': nome,
-        'cns': cns,
-        'idade': idade,
-        'faixaEtaria': faixaEtaria,
-        'aldeiaAtual': aldeiaAtual,
-        'vacinasTomadas': vacinasTomadas.map((v) => v.toJson()).toList(),
-      };
-
-  factory Indigena.fromJson(Map<String, dynamic> json) => Indigena(
-        nome: json['nome'],
-        cns: json['cns'],
-        idade: json['idade'],
-        faixaEtaria: json['faixaEtaria'],
-        aldeiaAtual: json['aldeiaAtual'],
-        vacinasTomadas: (json['vacinasTomadas'] as List)
-            .map((v) => Vacina.fromJson(v))
-            .toList(),
-      );
-}
-
-class Atendimento {
-  final String id;
-  final DateTime dataHora;
-  final String faixaEtaria;
-  final String tipo;
-  final String observacao;
-  final String indigenaCns;
-  final String agenteNome;
-  bool sincronizado;
-
-  Atendimento({
-    required this.id,
-    required this.dataHora,
-    required this.faixaEtaria,
-    required this.tipo,
-    required this.observacao,
-    required this.indigenaCns,
-    required this.agenteNome,
-    this.sincronizado = false,
-  });
-
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'dataHora': dataHora.toIso8601String(),
-        'faixaEtaria': faixaEtaria,
-        'tipo': tipo,
-        'observacao': observacao,
-        'indigenaCns': indigenaCns,
-        'agenteNome': agenteNome,
-        'sincronizado': sincronizado,
-      };
-
-  factory Atendimento.fromJson(Map<String, dynamic> json) => Atendimento(
-        id: json['id'],
-        dataHora: DateTime.parse(json['dataHora']),
-        faixaEtaria: json['faixaEtaria'],
-        tipo: json['tipo'] ?? 'Consulta Médica', // CORRIGIDO AQUI
-        observacao: json['observacao'] ?? '',
-        indigenaCns: json['indigenaCns'] ?? '',
-        agenteNome: json['agenteNome'] ?? 'Agente',
-        sincronizado: json['sincronizado'] ?? false,
-      );
-}
+import '../models/atendimento.dart';
+import '../models/indigena.dart';
 
 class HomeScreen extends StatefulWidget {
   final AgenteFunai agente;
@@ -133,6 +24,8 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _buscaController = TextEditingController();
+
+  StreamSubscription<List<ConnectivityResult>>? _conexaoSubscription;
 
   final List<String> aldeias = const [
     'Todas as Aldeias',
@@ -153,163 +46,387 @@ class _HomeScreenState extends State<HomeScreen> {
 
   List<Indigena> indigenas = [];
   List<Atendimento> atendimentos = [];
+
   bool estaOnline = false;
 
   @override
   void initState() {
     super.initState();
+
     _carregarDadosPersistidos();
     _monitorarConexao();
   }
 
   @override
   void dispose() {
+    _conexaoSubscription?.cancel();
     _buscaController.dispose();
     super.dispose();
   }
 
+  // ============================================================
+  // CARREGAMENTO DOS DADOS
+  // ============================================================
+
   Future<void> _carregarDadosPersistidos() async {
     final prefs = await SharedPreferences.getInstance();
 
+    // ------------------------------------------------------------
+    // ATENDIMENTOS
+    // ------------------------------------------------------------
+
     final String? atdJson = prefs.getString('atendimentos_locais');
+
     if (atdJson != null && atdJson.isNotEmpty) {
-      final List decoded = jsonDecode(atdJson);
-      setState(() {
-        atendimentos = decoded.map((e) => Atendimento.fromJson(e)).toList();
-      });
+      try {
+        final dynamic decoded = jsonDecode(atdJson);
+
+        if (decoded is List) {
+          final listaAtendimentos = decoded
+              .whereType<Map>()
+              .map(
+                (item) => Atendimento.fromMap(
+                  Map<String, dynamic>.from(item),
+                ),
+              )
+              .toList();
+
+          if (mounted) {
+            setState(() {
+              atendimentos = listaAtendimentos;
+            });
+          }
+        }
+      } catch (e) {
+        debugPrint('Erro ao carregar atendimentos locais: $e');
+      }
     }
 
+    // ------------------------------------------------------------
+    // INDÍGENAS
+    // ------------------------------------------------------------
+
     final String? indJson = prefs.getString('indigenas_locais');
+
     if (indJson != null && indJson.isNotEmpty) {
-      final List decoded = jsonDecode(indJson);
-      setState(() {
-        indigenas = decoded.map((e) => Indigena.fromJson(e)).toList();
-      });
+      try {
+        final dynamic decoded = jsonDecode(indJson);
+
+        if (decoded is List) {
+          final listaIndigenas = decoded
+              .whereType<Map>()
+              .map(
+                (item) => Indigena.fromJson(
+                  Map<String, dynamic>.from(item),
+                ),
+              )
+              .toList();
+
+          if (mounted) {
+            setState(() {
+              indigenas = listaIndigenas;
+            });
+          }
+        }
+      } catch (e) {
+        debugPrint('Erro ao carregar indígenas locais: $e');
+      }
     } else {
+      // Dados iniciais de demonstração
       indigenas = [
         Indigena(
-          nome: 'Kawy Tupinambá',
+          id: '1',
           cns: '700102030405060',
-          idade: 4,
-          faixaEtaria: '0-4',
+          nome: 'Kawy Tupinambá',
           aldeiaAtual: 'Tekoá-Miri',
-          vacinasTomadas: [
-            Vacina(
-              nome: 'BCG',
-              dose: 'Dose Única',
-              lote: 'BCG2023',
-              dataAplicacao: DateTime.now().subtract(const Duration(days: 300)),
-              aplicador: 'Enf. Juliana',
-            ),
-          ],
+          dataNascimento: DateTime.now().subtract(
+            const Duration(days: 4 * 365),
+          ),
+          vacinasTomadas: [],
         ),
         Indigena(
-          nome: 'Moara Guarani',
+          id: '2',
           cns: '800908070605040',
-          idade: 28,
-          faixaEtaria: '20-29',
+          nome: 'Moara Guarani',
           aldeiaAtual: 'Itaóca Tupi',
+          dataNascimento: DateTime.now().subtract(
+            const Duration(days: 28 * 365),
+          ),
           vacinasTomadas: [],
         ),
       ];
+
       await _salvarIndigenasLocalmente();
+
+      if (mounted) {
+        setState(() {});
+      }
     }
   }
 
+  // ============================================================
+  // PERSISTÊNCIA LOCAL
+  // ============================================================
+
   Future<void> _salvarAtendimentosLocalmente() async {
     final prefs = await SharedPreferences.getInstance();
-    final String encoded = jsonEncode(atendimentos.map((a) => a.toJson()).toList());
-    await prefs.setString('atendimentos_locais', encoded);
+
+    /*
+      IMPORTANTE:
+
+      NÃO usamos atendimento.toMap() aqui.
+
+      toMap() contém Timestamp, que serve para o Firebase,
+      mas não pode ser convertido pelo jsonEncode().
+
+      Para armazenamento local usamos toLocalMap(),
+      que salva dataHora como String ISO 8601.
+    */
+
+    final List<Map<String, dynamic>> dadosLocais = atendimentos
+        .map(
+          (atendimento) => atendimento.toLocalMap(),
+        )
+        .toList();
+
+    final String encoded = jsonEncode(dadosLocais);
+
+    await prefs.setString(
+      'atendimentos_locais',
+      encoded,
+    );
   }
 
   Future<void> _salvarIndigenasLocalmente() async {
     final prefs = await SharedPreferences.getInstance();
-    final String encoded = jsonEncode(indigenas.map((i) => i.toJson()).toList());
-    await prefs.setString('indigenas_locais', encoded);
+
+    final String encoded = jsonEncode(
+      indigenas
+          .map(
+            (indigena) => indigena.toJson(),
+          )
+          .toList(),
+    );
+
+    await prefs.setString(
+      'indigenas_locais',
+      encoded,
+    );
   }
 
-  void _monitorarConexao() {
-    Connectivity().onConnectivityChanged.listen((ConnectivityResult result) {
-      bool online = (result == ConnectivityResult.mobile ||
-          result == ConnectivityResult.wifi ||
-          result == ConnectivityResult.ethernet);
+  // ============================================================
+  // CONEXÃO
+  // ============================================================
 
-      setState(() => estaOnline = online);
+  Future<void> _monitorarConexao() async {
+    try {
+      // Verifica a conexão imediatamente ao abrir a tela.
+      final List<ConnectivityResult> resultados =
+          await Connectivity().checkConnectivity();
 
-      if (online) {
-        _sincronizarComNuvem();
+      _atualizarStatusConexao(resultados);
+
+      // Depois continua monitorando mudanças.
+      _conexaoSubscription =
+          Connectivity().onConnectivityChanged.listen(
+        (List<ConnectivityResult> resultados) {
+          _atualizarStatusConexao(resultados);
+        },
+      );
+    } catch (e) {
+      debugPrint('Erro ao verificar conexão: $e');
+
+      if (mounted) {
+        setState(() {
+          estaOnline = false;
+        });
       }
-    });
+    }
   }
+
+  void _atualizarStatusConexao(
+    List<ConnectivityResult> resultados,
+  ) {
+    final bool online = resultados.any(
+      (resultado) =>
+          resultado == ConnectivityResult.mobile ||
+          resultado == ConnectivityResult.wifi ||
+          resultado == ConnectivityResult.ethernet,
+    );
+
+    if (!mounted) return;
+
+    setState(() {
+      estaOnline = online;
+    });
+
+    if (online) {
+      _sincronizarComNuvem();
+    }
+  }
+
+  // ============================================================
+  // SINCRONIZAÇÃO COM FIREBASE
+  // ============================================================
 
   Future<void> _sincronizarComNuvem() async {
-    final pendentes = atendimentos.where((a) => !a.sincronizado).toList();
-    if (pendentes.isEmpty) return;
-
     final firestore = FirebaseFirestore.instance;
 
-    for (var a in pendentes) {
+    int sincronizados = 0;
+
+    for (final atendimento in atendimentos) {
+      // Não envia novamente o que já foi sincronizado.
+      if (atendimento.sincronizado) {
+        continue;
+      }
+
       try {
-        await firestore.collection('atendimentos').doc(a.id).set(a.toJson());
-        setState(() {
-          a.sincronizado = true;
-        });
+        /*
+          Aqui SIM usamos toMap().
+
+          O toMap() foi feito para o Firebase e contém
+          Timestamp.fromDate(dataHora).
+        */
+
+        await firestore
+            .collection('atendimentos')
+            .doc(atendimento.id)
+            .set(
+              atendimento.toMap(),
+            );
+
+        atendimento.sincronizado = true;
+
+        sincronizados++;
       } catch (e) {
-        // Mantém pendente para próxima tentativa
+        debugPrint(
+          'Erro ao sincronizar atendimento '
+          '${atendimento.id}: $e',
+        );
       }
     }
 
-    await _salvarAtendimentosLocalmente();
+    if (sincronizados > 0) {
+      await _salvarAtendimentosLocalmente();
 
-    if (mounted && pendentes.any((a) => a.sincronizado)) {
+      if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('${pendentes.where((a) => a.sincronizado).length} atendimento(s) sincronizado(s) com a nuvem!'),
+          content: Text(
+            '$sincronizados atendimento(s) sincronizado(s) com a nuvem.',
+          ),
           backgroundColor: Colors.green,
         ),
       );
     }
   }
 
+  // ============================================================
+  // REGISTRAR ATENDIMENTO
+  // ============================================================
+
   Future<void> _registrarAtendimento(
-      Indigena indigena, String tipo, String observacao) async {
+    Indigena indigena,
+    String tipo,
+    String observacao,
+  ) async {
     final novoAtendimento = Atendimento(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
-      dataHora: DateTime.now(),
+      indigenaId: indigena.id,
+      nomeIndigena: indigena.nome,
+      cnsIndigena: indigena.cns,
+      aldeia: indigena.aldeiaAtual,
+      tipoAtendimento: tipo,
+      idade: indigena.idade,
       faixaEtaria: indigena.faixaEtaria,
-      tipo: tipo,
-      observacao: observacao,
-      indigenaCns: indigena.cns,
-      agenteNome: widget.agente.nome,
+      observacoes: observacao,
+      dataHora: DateTime.now(),
+      agenteMatricula: widget.agente.matricula,
       sincronizado: false,
     );
+
+    // ------------------------------------------------------------
+    // 1. SALVA PRIMEIRO NO CELULAR
+    // ------------------------------------------------------------
 
     setState(() {
       atendimentos.add(novoAtendimento);
     });
 
+    /*
+      Aqui usamos toLocalMap() através de
+      _salvarAtendimentosLocalmente().
+
+      Portanto NÃO haverá mais erro de Timestamp.
+    */
+
     await _salvarAtendimentosLocalmente();
+
+    // ------------------------------------------------------------
+    // 2. TENTA ENVIAR PARA O FIREBASE
+    // ------------------------------------------------------------
 
     try {
       await FirebaseFirestore.instance
           .collection('atendimentos')
           .doc(novoAtendimento.id)
-          .set(novoAtendimento.toJson());
+          .set(
+            novoAtendimento.toMap(),
+          );
 
-      setState(() {
-        novoAtendimento.sincronizado = true;
-      });
+      // Se chegou aqui, Firebase recebeu o atendimento.
+      novoAtendimento.sincronizado = true;
 
+      // Salva novamente localmente marcando como sincronizado.
       await _salvarAtendimentosLocalmente();
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Atendimento registrado e sincronizado com a nuvem!',
+          ),
+          backgroundColor: Colors.green,
+        ),
+      );
     } catch (e) {
-      // Falha ao enviar fica gravada localmente e tentará novamente via listener de conectividade
+      /*
+        IMPORTANTE:
+
+        Mesmo que o Firebase dê erro, o atendimento
+        continua salvo no celular.
+
+        Como sincronizado continua false,
+        ele poderá ser enviado posteriormente.
+      */
+
+      debugPrint(
+        'Atendimento salvo localmente. '
+        'Erro Firebase: $e',
+      );
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Atendimento salvo localmente. '
+            'Será sincronizado quando houver conexão.',
+          ),
+          backgroundColor: Colors.orange,
+        ),
+      );
     }
   }
 
+  // ============================================================
+  // BUILD
+  // ============================================================
+
   @override
   Widget build(BuildContext context) {
-    int naoSincronizados = atendimentos.where((a) => !a.sincronizado).length;
-
     return DefaultTabController(
       length: 2,
       child: Scaffold(
@@ -321,20 +438,32 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               Row(
                 children: [
-                  const Text('Saúde Indígena',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  const Text(
+                    'Saúde Indígena',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                   const SizedBox(width: 8),
                   Icon(
-                    estaOnline ? Icons.wifi : Icons.wifi_off,
+                    estaOnline
+                        ? Icons.wifi
+                        : Icons.wifi_off,
                     size: 16,
-                    color: estaOnline ? Colors.greenAccent : Colors.orangeAccent,
+                    color: estaOnline
+                        ? Colors.greenAccent
+                        : Colors.orangeAccent,
                   ),
                 ],
               ),
               Text(
-                '${widget.agente.nome} (${widget.agente.cargo}) ${naoSincronizados > 0 ? "• $naoSincronizados pendentes" : ""}',
+                '${widget.agente.nome} '
+                '(${widget.agente.cargo ?? 'Agente FUNAI'})',
                 style: const TextStyle(
-                    fontSize: 12, fontWeight: FontWeight.normal),
+                  fontSize: 12,
+                  fontWeight: FontWeight.normal,
+                ),
               ),
             ],
           ),
@@ -343,8 +472,14 @@ class _HomeScreenState extends State<HomeScreen> {
             labelColor: Colors.white,
             unselectedLabelColor: Colors.white70,
             tabs: [
-              Tab(icon: Icon(Icons.medical_services), text: 'Atendimentos'),
-              Tab(icon: Icon(Icons.bar_chart), text: 'Relatório Mensal'),
+              Tab(
+                icon: Icon(Icons.medical_services),
+                text: 'Atendimentos',
+              ),
+              Tab(
+                icon: Icon(Icons.bar_chart),
+                text: 'Relatório Mensal',
+              ),
             ],
           ),
         ),
@@ -358,33 +493,51 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // ============================================================
+  // ABA ATENDIMENTOS
+  // ============================================================
+
   Widget _buildAbaAtendimentos() {
-    final filtrados = indigenas.where((i) {
-      final matchAldeia = aldeiaSelecionada == 'Todas as Aldeias' ||
-          i.aldeiaAtual == aldeiaSelecionada;
-      final queryLower = buscaQuery.toLowerCase();
-      final matchQuery = i.nome.toLowerCase().contains(queryLower) ||
-          i.cns.contains(buscaQuery);
+    final filtrados = indigenas.where((indigena) {
+      final bool matchAldeia =
+          aldeiaSelecionada == 'Todas as Aldeias' ||
+          indigena.aldeiaAtual == aldeiaSelecionada;
+
+      final String queryLower =
+          buscaQuery.toLowerCase().trim();
+
+      final bool matchQuery =
+          indigena.nome.toLowerCase().contains(queryLower) ||
+          indigena.cns.contains(buscaQuery.trim());
+
       return matchAldeia && matchQuery;
     }).toList();
 
     return Padding(
-      padding: const EdgeInsets.all(16.0),
+      padding: const EdgeInsets.all(16),
       child: Column(
         children: [
           DropdownButtonFormField<String>(
-            initialValue: aldeiaSelecionada, // CORRIGIDO AQUI (substituído 'value' por 'initialValue')
+            initialValue: aldeiaSelecionada,
             decoration: const InputDecoration(
               labelText: 'Selecione a Aldeia',
               border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.home),
             ),
             items: aldeias
-                .map((a) => DropdownMenuItem(value: a, child: Text(a)))
+                .map(
+                  (aldeia) => DropdownMenuItem<String>(
+                    value: aldeia,
+                    child: Text(aldeia),
+                  ),
+                )
                 .toList(),
-            onChanged: (val) {
-              if (val != null) {
-                setState(() => aldeiaSelecionada = val);
-              }
+            onChanged: (value) {
+              if (value == null) return;
+
+              setState(() {
+                aldeiaSelecionada = value;
+              });
             },
           ),
           const SizedBox(height: 12),
@@ -395,46 +548,83 @@ class _HomeScreenState extends State<HomeScreen> {
               prefixIcon: Icon(Icons.search),
               border: OutlineInputBorder(),
             ),
-            onChanged: (val) => setState(() => buscaQuery = val),
+            onChanged: (value) {
+              setState(() {
+                buscaQuery = value;
+              });
+            },
           ),
           const SizedBox(height: 16),
           Expanded(
             child: filtrados.isEmpty
                 ? const Center(
-                    child: Text('Nenhum indígena encontrado nesta aldeia.'),
+                    child: Text(
+                      'Nenhum indígena encontrado nesta aldeia.',
+                    ),
                   )
                 : ListView.builder(
                     itemCount: filtrados.length,
                     itemBuilder: (context, index) {
                       final item = filtrados[index];
+
                       return Card(
                         elevation: 2,
-                        margin: const EdgeInsets.symmetric(vertical: 6),
+                        margin: const EdgeInsets.symmetric(
+                          vertical: 6,
+                        ),
                         child: ListTile(
+                          contentPadding:
+                              const EdgeInsets.all(12),
                           title: Text(
                             item.nome,
-                            style: const TextStyle(fontWeight: FontWeight.bold),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
                           ),
-                          subtitle: Text(
-                            'Aldeia: ${item.aldeiaAtual}\nCNS: ${item.cns}\nIdade: ${item.idade} anos (Faixa: ${item.faixaEtaria})',
+                          subtitle: Padding(
+                            padding:
+                                const EdgeInsets.only(top: 6),
+                            child: Text(
+                              'Aldeia: ${item.aldeiaAtual}\n'
+                              'CNS: ${item.cns}\n'
+                              'Idade: ${item.idade} anos\n'
+                              'Faixa etária: ${item.faixaEtaria}',
+                            ),
                           ),
                           trailing: Wrap(
                             spacing: 8,
                             children: [
                               OutlinedButton.icon(
-                                icon: const Icon(Icons.vaccines,
-                                    color: Colors.teal, size: 18),
-                                label: const Text('Vacinas'),
-                                onPressed: () => _abrirCartaoVacina(item),
+                                icon: const Icon(
+                                  Icons.vaccines,
+                                  color: Colors.teal,
+                                  size: 18,
+                                ),
+                                label: const Text(
+                                  'Vacinas',
+                                ),
+                                onPressed: () {
+                                  _abrirCartaoVacina(item);
+                                },
                               ),
                               ElevatedButton.icon(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF006A4E),
+                                style:
+                                    ElevatedButton.styleFrom(
+                                  backgroundColor:
+                                      const Color(0xFF006A4E),
                                   foregroundColor: Colors.white,
                                 ),
-                                icon: const Icon(Icons.add, size: 18),
-                                label: const Text('Atender'),
-                                onPressed: () => _abrirModalAtendimento(item),
+                                icon: const Icon(
+                                  Icons.add,
+                                  size: 18,
+                                ),
+                                label: const Text(
+                                  'Atender',
+                                ),
+                                onPressed: () {
+                                  _abrirModalAtendimento(item);
+                                },
                               ),
                             ],
                           ),
@@ -448,135 +638,192 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // ============================================================
+  // CARTÃO DE VACINAS
+  // ============================================================
+
   void _abrirCartaoVacina(Indigena indigena) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(20),
+        ),
       ),
       builder: (ctx) {
-        return Container(
+        return SizedBox(
           height: MediaQuery.of(ctx).size.height * 0.85,
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Cartão de Vacinas: ${indigena.nome}',
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Cartão de Vacinas: ${indigena.nome}',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.pop(ctx),
-                  ),
-                ],
-              ),
-              const Divider(),
-              const Text(
-                'Vacinas Aplicadas:',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Colors.green,
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                      },
+                    ),
+                  ],
                 ),
-              ),
-              const SizedBox(height: 8),
-              Expanded(
-                child: indigena.vacinasTomadas.isEmpty
-                    ? const Center(
-                        child: Text('Nenhuma vacina registrada ainda.'),
-                      )
-                    : ListView.builder(
-                        itemCount: indigena.vacinasTomadas.length,
-                        itemBuilder: (context, i) {
-                          final v = indigena.vacinasTomadas[i];
-                          final dia =
-                              v.dataAplicacao.day.toString().padLeft(2, '0');
-                          final mes =
-                              v.dataAplicacao.month.toString().padLeft(2, '0');
-                          final ano = v.dataAplicacao.year;
+                const Divider(),
+                const Text(
+                  'Vacinas Aplicadas:',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.green,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Expanded(
+                  child: indigena.vacinasTomadas.isEmpty
+                      ? const Center(
+                          child: Text(
+                            'Nenhuma vacina registrada ainda.',
+                          ),
+                        )
+                      : ListView.builder(
+                          itemCount:
+                              indigena.vacinasTomadas.length,
+                          itemBuilder:
+                              (context, index) {
+                            final vacina = indigena
+                                .vacinasTomadas[index];
 
-                          return Card(
-                            color: Colors.green.shade50,
-                            child: ListTile(
-                              leading: const Icon(
-                                Icons.check_circle,
-                                color: Colors.green,
+                            final String dia = vacina
+                                .dataAplicacao.day
+                                .toString()
+                                .padLeft(2, '0');
+
+                            final String mes = vacina
+                                .dataAplicacao.month
+                                .toString()
+                                .padLeft(2, '0');
+
+                            final int ano =
+                                vacina.dataAplicacao.year;
+
+                            return Card(
+                              color: Colors.green.shade50,
+                              child: ListTile(
+                                leading: const Icon(
+                                  Icons.check_circle,
+                                  color: Colors.green,
+                                ),
+                                title: Text(
+                                  '${vacina.nome} - ${vacina.dose}',
+                                ),
+                                subtitle: Text(
+                                  'Lote: ${vacina.lote}\n'
+                                  'Data: $dia/$mes/$ano\n'
+                                  'Aplicador: ${vacina.aplicador}',
+                                ),
                               ),
-                              title: Text('${v.nome} - ${v.dose}'),
-                              subtitle: Text(
-                                'Lote: ${v.lote} | Data: $dia/$mes/$ano\nAplicador: ${v.aplicador}',
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-              ),
-            ],
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
           ),
         );
       },
     );
   }
 
-  Widget _buildAbaRelatorios() {
-    final atdMes = atendimentos.where((a) =>
-        a.dataHora.year == mesRelatorio.year &&
-        a.dataHora.month == mesRelatorio.month).toList();
+  // ============================================================
+  // RELATÓRIO MENSAL
+  // ============================================================
 
-    final meusAtdMes = atdMes.where((a) => a.agenteNome == widget.agente.nome).toList();
+  Widget _buildAbaRelatorios() {
+    final atdMes = atendimentos.where((atendimento) {
+      return atendimento.dataHora.year ==
+              mesRelatorio.year &&
+          atendimento.dataHora.month ==
+              mesRelatorio.month;
+    }).toList();
+
+    final meusAtdMes = atdMes.where((atendimento) {
+      return atendimento.agenteMatricula ==
+          widget.agente.matricula;
+    }).toList();
 
     final Map<String, int> faixas = {
-      '0-4': 0,
-      '5-9': 0,
-      '10-19': 0,
-      '20-29': 0,
-      '30-59': 0,
+      '0 a 4 anos': 0,
+      '5 a 9 anos': 0,
+      '10 a 19 anos': 0,
+      '20 a 29 anos': 0,
+      '30 a 59 anos': 0,
       '60+': 0,
     };
 
-    for (var a in atdMes) {
-      if (faixas.containsKey(a.faixaEtaria)) {
-        faixas[a.faixaEtaria] = faixas[a.faixaEtaria]! + 1;
+    for (final atendimento in atdMes) {
+      if (faixas.containsKey(
+        atendimento.faixaEtaria,
+      )) {
+        faixas[atendimento.faixaEtaria] =
+            faixas[atendimento.faixaEtaria]! + 1;
       }
     }
 
-    final mesNome = _getMesNome(mesRelatorio.month);
+    final String mesNome =
+        _getMesNome(mesRelatorio.month);
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16.0),
+      padding: const EdgeInsets.all(16),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            mainAxisAlignment:
+                MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Mês: $mesNome / ${mesRelatorio.year}',
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              Expanded(
+                child: Text(
+                  'Mês: $mesNome / ${mesRelatorio.year}',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
               ElevatedButton.icon(
-                icon: const Icon(Icons.calendar_month),
-                label: const Text('Alterar Mês'),
+                icon: const Icon(
+                  Icons.calendar_month,
+                ),
+                label: const Text(
+                  'Alterar Mês',
+                ),
                 onPressed: () async {
-                  final picked = await showDatePicker(
+                  final picked =
+                      await showDatePicker(
                     context: context,
                     initialDate: mesRelatorio,
                     firstDate: DateTime(2020),
                     lastDate: DateTime.now(),
-                    helpText: 'Selecione qualquer dia do mês desejado',
+                    helpText:
+                        'Selecione qualquer dia do mês desejado',
                   );
+
                   if (picked != null) {
-                    setState(() => mesRelatorio = picked);
+                    setState(() {
+                      mesRelatorio = picked;
+                    });
                   }
                 },
               ),
@@ -589,27 +836,41 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Card(
                   color: Colors.teal.shade50,
                   child: Padding(
-                    padding: const EdgeInsets.all(12.0),
+                    padding:
+                        const EdgeInsets.all(12),
                     child: Column(
                       children: [
                         const Text(
                           'Meus Atendimentos',
-                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
-                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textAlign:
+                              TextAlign.center,
                         ),
                         const SizedBox(height: 6),
                         Text(
                           '${meusAtdMes.length}',
-                          style: const TextStyle(
+                          style:
+                              const TextStyle(
                             fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF006A4E),
+                            fontWeight:
+                                FontWeight.bold,
+                            color:
+                                Color(0xFF006A4E),
                           ),
                         ),
                         Text(
                           'Agente: ${widget.agente.nome}',
-                          style: const TextStyle(fontSize: 10, color: Colors.black54),
-                          overflow: TextOverflow.ellipsis,
+                          style:
+                              const TextStyle(
+                            fontSize: 10,
+                            color:
+                                Colors.black54,
+                          ),
+                          overflow:
+                              TextOverflow.ellipsis,
                         ),
                       ],
                     ),
@@ -621,26 +882,40 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Card(
                   color: Colors.blue.shade50,
                   child: Padding(
-                    padding: const EdgeInsets.all(12.0),
+                    padding:
+                        const EdgeInsets.all(12),
                     child: Column(
                       children: [
                         const Text(
                           'Total Geral das Aldeias',
-                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
-                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight:
+                                FontWeight.bold,
+                          ),
+                          textAlign:
+                              TextAlign.center,
                         ),
                         const SizedBox(height: 6),
                         Text(
                           '${atdMes.length}',
-                          style: const TextStyle(
+                          style:
+                              const TextStyle(
                             fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.blueAccent,
+                            fontWeight:
+                                FontWeight.bold,
+                            color:
+                                Colors.blueAccent,
                           ),
                         ),
                         const Text(
                           'Todos os Agentes',
-                          style: TextStyle(fontSize: 10, color: Colors.black54),
+                          style:
+                              TextStyle(
+                            fontSize: 10,
+                            color:
+                                Colors.black54,
+                          ),
                         ),
                       ],
                     ),
@@ -652,23 +927,35 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(height: 20),
           const Text(
             'Atendimentos por Faixa Etária (Mês):',
-            style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+            ),
           ),
           const SizedBox(height: 8),
           Wrap(
             spacing: 8,
             runSpacing: 8,
             children: faixas.entries
-                .map((e) => Chip(
-                      label: Text('${e.key}: ${e.value}'),
-                      backgroundColor: Colors.teal.shade100,
-                    ))
+                .map(
+                  (entry) => Chip(
+                    label: Text(
+                      '${entry.key}: ${entry.value}',
+                    ),
+                    backgroundColor:
+                        Colors.teal.shade100,
+                  ),
+                )
                 .toList(),
           ),
         ],
       ),
     );
   }
+
+  // ============================================================
+  // MESES
+  // ============================================================
 
   String _getMesNome(int mes) {
     const meses = [
@@ -683,19 +970,37 @@ class _HomeScreenState extends State<HomeScreen> {
       'Setembro',
       'Outubro',
       'Novembro',
-      'Dezembro'
+      'Dezembro',
     ];
+
+    if (mes < 1 || mes > 12) {
+      return '';
+    }
+
     return meses[mes - 1];
   }
 
-  void _abrirModalAtendimento(Indigena indigena) {
+  // ============================================================
+  // MODAL DE ATENDIMENTO
+  // ============================================================
+
+  void _abrirModalAtendimento(
+    Indigena indigena,
+  ) {
     showDialog(
       context: context,
       builder: (dialogContext) {
         return _ModalAtendimentoDialog(
           indigena: indigena,
-          onSalvar: (tipo, obs) async {
-            await _registrarAtendimento(indigena, tipo, obs);
+          onSalvar: (
+            tipo,
+            observacao,
+          ) async {
+            await _registrarAtendimento(
+              indigena,
+              tipo,
+              observacao,
+            );
           },
         );
       },
@@ -703,23 +1008,37 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-class _ModalAtendimentoDialog extends StatefulWidget {
+// ==================================================================
+// MODAL DE ATENDIMENTO
+// ==================================================================
+
+class _ModalAtendimentoDialog
+    extends StatefulWidget {
   final Indigena indigena;
-  final Future<void> Function(String tipo, String obs) onSalvar;
+
+  final Future<void> Function(
+    String tipo,
+    String observacao,
+  ) onSalvar;
 
   const _ModalAtendimentoDialog({
     required this.indigena,
     required this.onSalvar,
-  }); // CORRIGIDO AQUI (removido super.key não utilizado)
+  });
 
   @override
   State<_ModalAtendimentoDialog> createState() =>
       _ModalAtendimentoDialogState();
 }
 
-class _ModalAtendimentoDialogState extends State<_ModalAtendimentoDialog> {
-  final _obsController = TextEditingController();
-  String _tipoSelecionado = 'Consulta Médica';
+class _ModalAtendimentoDialogState
+    extends State<_ModalAtendimentoDialog> {
+  final TextEditingController _obsController =
+      TextEditingController();
+
+  String _tipoSelecionado =
+      'Consulta Médica';
+
   bool _carregando = false;
 
   final List<String> _tiposAtendimento = const [
@@ -736,32 +1055,37 @@ class _ModalAtendimentoDialogState extends State<_ModalAtendimentoDialog> {
   }
 
   Future<void> _submeterFormulario() async {
-    setState(() => _carregando = true);
+    if (_carregando) return;
+
+    setState(() {
+      _carregando = true;
+    });
 
     try {
-      await widget.onSalvar(_tipoSelecionado, _obsController.text.trim());
+      await widget.onSalvar(
+        _tipoSelecionado,
+        _obsController.text.trim(),
+      );
 
       if (!mounted) return;
 
       Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Atendimento registrado com sucesso!'),
-          backgroundColor: Colors.green,
-        ),
-      );
     } catch (e) {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Erro ao registrar atendimento: $e'),
+          content: Text(
+            'Erro ao registrar atendimento: $e',
+          ),
           backgroundColor: Colors.red,
         ),
       );
     } finally {
       if (mounted) {
-        setState(() => _carregando = false);
+        setState(() {
+          _carregando = false;
+        });
       }
     }
   }
@@ -769,30 +1093,49 @@ class _ModalAtendimentoDialogState extends State<_ModalAtendimentoDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text('Atender: ${widget.indigena.nome}'),
+      title: Text(
+        'Atender: ${widget.indigena.nome}',
+      ),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             DropdownButtonFormField<String>(
-              initialValue: _tipoSelecionado, // CORRIGIDO AQUI (substituído 'value' por 'initialValue')
-              decoration:
-                  const InputDecoration(labelText: 'Tipo de Atendimento'),
+              initialValue: _tipoSelecionado,
+              decoration: const InputDecoration(
+                labelText:
+                    'Tipo de Atendimento',
+                border: OutlineInputBorder(),
+              ),
               items: _tiposAtendimento
-                  .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                  .map(
+                    (tipo) =>
+                        DropdownMenuItem<String>(
+                      value: tipo,
+                      child: Text(tipo),
+                    ),
+                  )
                   .toList(),
               onChanged: _carregando
                   ? null
-                  : (v) {
-                      if (v != null) setState(() => _tipoSelecionado = v);
+                  : (value) {
+                      if (value == null) return;
+
+                      setState(() {
+                        _tipoSelecionado =
+                            value;
+                      });
                     },
             ),
             const SizedBox(height: 12),
             TextField(
               controller: _obsController,
               enabled: !_carregando,
-              decoration: const InputDecoration(
-                labelText: 'Observações / Diagnóstico',
+              decoration:
+                  const InputDecoration(
+                labelText:
+                    'Observações / Diagnóstico',
+                border: OutlineInputBorder(),
               ),
               maxLines: 3,
             ),
@@ -801,25 +1144,35 @@ class _ModalAtendimentoDialogState extends State<_ModalAtendimentoDialog> {
       ),
       actions: [
         TextButton(
-          onPressed: _carregando ? null : () => Navigator.pop(context),
+          onPressed: _carregando
+              ? null
+              : () {
+                  Navigator.pop(context);
+                },
           child: const Text('Cancelar'),
         ),
         ElevatedButton(
           style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF006A4E),
+            backgroundColor:
+                const Color(0xFF006A4E),
             foregroundColor: Colors.white,
           ),
-          onPressed: _carregando ? null : _submeterFormulario,
+          onPressed: _carregando
+              ? null
+              : _submeterFormulario,
           child: _carregando
               ? const SizedBox(
                   width: 20,
                   height: 20,
-                  child: CircularProgressIndicator(
+                  child:
+                      CircularProgressIndicator(
                     strokeWidth: 2,
                     color: Colors.white,
                   ),
                 )
-              : const Text('Salvar Atendimento'),
+              : const Text(
+                  'Salvar Atendimento',
+                ),
         ),
       ],
     );

@@ -13,19 +13,36 @@ class VacinaAplicada {
     required this.aplicador,
   });
 
-  Map<String, dynamic> toJson() => {
-        'nome': nome,
-        'dose': dose,
-        'lote': lote,
-        'dataAplicacao': dataAplicacao.toIso8601String(),
-        'aplicador': aplicador,
-      };
+  Map<String, dynamic> toJson() {
+    return {
+      'nome': nome,
+      'dose': dose,
+      'lote': lote,
+      'dataAplicacao': dataAplicacao.toIso8601String(),
+      'aplicador': aplicador,
+    };
+  }
 
-  factory VacinaAplicada.fromJson(Map<String, dynamic> json) => VacinaAplicada(
-        nome: json['nome'],
-        dose: json['dose'],
-        lote: json['lote'],
-        dataAplicacao: DateTime.parse(json['dataAplicacao']),
-        aplicador: json['aplicador'] ?? 'Agente FUNAI',
+  factory VacinaAplicada.fromJson(
+    Map<String, dynamic> json,
+  ) {
+    DateTime data;
+
+    try {
+      data = DateTime.parse(
+        json['dataAplicacao']?.toString() ?? '',
       );
+    } catch (_) {
+      data = DateTime.now();
+    }
+
+    return VacinaAplicada(
+      nome: json['nome']?.toString() ?? '',
+      dose: json['dose']?.toString() ?? '',
+      lote: json['lote']?.toString() ?? '',
+      dataAplicacao: data,
+      aplicador:
+          json['aplicador']?.toString() ?? 'Agente FUNAI',
+    );
+  }
 }

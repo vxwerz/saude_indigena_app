@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../models/agente_funai.dart';
 import '../models/indigena.dart';
 
@@ -19,8 +20,9 @@ class VacinasScreen extends StatefulWidget {
 }
 
 class _VacinasScreenState extends State<VacinasScreen> {
-  final _vacinaController = TextEditingController();
-  final _loteController = TextEditingController();
+  final TextEditingController _vacinaController = TextEditingController();
+  final TextEditingController _loteController = TextEditingController();
+
   String _doseSelecionada = '1ª Dose';
 
   @override
@@ -36,7 +38,9 @@ class _VacinasScreenState extends State<VacinasScreen> {
 
     if (nomeVacina.isEmpty || lote.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Preencha o nome da vacina e o lote!')),
+        const SnackBar(
+          content: Text('Preencha o nome da vacina e o lote!'),
+        ),
       );
       return;
     }
@@ -46,19 +50,19 @@ class _VacinasScreenState extends State<VacinasScreen> {
       dose: _doseSelecionada,
       lote: lote,
       dataAplicacao: DateTime.now(),
-      aplicador: '${widget.agente.nome} (${widget.agente.cargo})',
+      aplicador:
+          '${widget.agente.nome}${widget.agente.cargo != null ? ' (${widget.agente.cargo})' : ''}',
     );
 
     setState(() {
       widget.indigena.vacinasTomadas.add(novaVacina);
     });
 
-    if (widget.onVacinaAplicada != null) {
-      widget.onVacinaAplicada!(widget.indigena);
-    }
+    widget.onVacinaAplicada?.call(widget.indigena);
 
     _vacinaController.clear();
     _loteController.clear();
+
     Navigator.pop(context);
 
     ScaffoldMessenger.of(context).showSnackBar(
@@ -70,16 +74,19 @@ class _VacinasScreenState extends State<VacinasScreen> {
   }
 
   void _abrirModalAplicacao({String? vacinaSugerida}) {
-    if (vacinaSugerida != null) {
-      _vacinaController.text = vacinaSugerida;
-    }
+    _vacinaController.text = vacinaSugerida ?? '';
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      builder: (context) {
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(20),
+        ),
+      ),
+      builder: (modalContext) {
         return StatefulBuilder(
-          builder: (BuildContext context, StateSetter setModalState) {
+          builder: (context, setModalState) {
             return Padding(
               padding: EdgeInsets.only(
                 top: 24,
@@ -87,78 +94,103 @@ class _VacinasScreenState extends State<VacinasScreen> {
                 right: 24,
                 bottom: MediaQuery.of(context).viewInsets.bottom + 24,
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Registrar Vacinação',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF006A4E),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: _vacinaController,
-                    decoration: const InputDecoration(
-                      labelText: 'Nome da Vacina',
-                      prefixIcon: Icon(Icons.vaccines),
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    initialValue: _doseSelecionada,
-                    decoration: const InputDecoration(
-                      labelText: 'Dose',
-                      prefixIcon: Icon(Icons.format_list_numbered),
-                      border: OutlineInputBorder(),
-                    ),
-                    items: const [
-                      DropdownMenuItem(value: '1ª Dose', child: Text('1ª Dose')),
-                      DropdownMenuItem(value: '2ª Dose', child: Text('2ª Dose')),
-                      DropdownMenuItem(value: '3ª Dose', child: Text('3ª Dose')),
-                      DropdownMenuItem(value: 'Reforço', child: Text('Reforço')),
-                      DropdownMenuItem(value: 'Dose Única', child: Text('Dose Única')),
-                    ],
-                    onChanged: (val) {
-                      if (val != null) {
-                        setModalState(() {
-                          _doseSelecionada = val;
-                        });
-                      }
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _loteController,
-                    decoration: const InputDecoration(
-                      labelText: 'Número do Lote',
-                      prefixIcon: Icon(Icons.qr_code),
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Aplicador: ${widget.agente.nome} (${widget.agente.cargo})',
-                    style: const TextStyle(fontWeight: FontWeight.w500, color: Colors.grey),
-                  ),
-                  const SizedBox(height: 20),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 48,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF006A4E),
-                        foregroundColor: Colors.white,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Registrar Vacinação',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF006A4E),
                       ),
-                      onPressed: _aplicarVacina,
-                      child: const Text('CONFIRMAR APLICAÇÃO'),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: _vacinaController,
+                      decoration: const InputDecoration(
+                        labelText: 'Nome da Vacina',
+                        prefixIcon: Icon(Icons.vaccines),
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      initialValue: _doseSelecionada,
+                      decoration: const InputDecoration(
+                        labelText: 'Dose',
+                        prefixIcon: Icon(Icons.format_list_numbered),
+                        border: OutlineInputBorder(),
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: '1ª Dose',
+                          child: Text('1ª Dose'),
+                        ),
+                        DropdownMenuItem(
+                          value: '2ª Dose',
+                          child: Text('2ª Dose'),
+                        ),
+                        DropdownMenuItem(
+                          value: '3ª Dose',
+                          child: Text('3ª Dose'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'Reforço',
+                          child: Text('Reforço'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'Dose Única',
+                          child: Text('Dose Única'),
+                        ),
+                      ],
+                      onChanged: (valor) {
+                        if (valor != null) {
+                          setModalState(() {
+                            _doseSelecionada = valor;
+                          });
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _loteController,
+                      decoration: const InputDecoration(
+                        labelText: 'Número do Lote',
+                        prefixIcon: Icon(Icons.qr_code),
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Aplicador: ${widget.agente.nome}${widget.agente.cargo != null ? ' (${widget.agente.cargo})' : ''}',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w500,
+                        color: Colors.grey,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF006A4E),
+                          foregroundColor: Colors.white,
+                        ),
+                        onPressed: _aplicarVacina,
+                        child: const Text(
+                          'CONFIRMAR APLICAÇÃO',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             );
           },
@@ -167,8 +199,19 @@ class _VacinasScreenState extends State<VacinasScreen> {
     );
   }
 
+  String _formatarData(DateTime data) {
+    final dia = data.day.toString().padLeft(2, '0');
+    final mes = data.month.toString().padLeft(2, '0');
+    final ano = data.year.toString();
+
+    return '$dia/$mes/$ano';
+  }
+
   @override
   Widget build(BuildContext context) {
+    final vacinasPendentes = widget.indigena.vacinasPendentes;
+    final vacinasTomadas = widget.indigena.vacinasTomadas;
+
     return Scaffold(
       appBar: AppBar(
         title: Text('Vacinas - ${widget.indigena.nome}'),
@@ -176,79 +219,146 @@ class _VacinasScreenState extends State<VacinasScreen> {
         foregroundColor: Colors.white,
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Card(
+              elevation: 2,
               child: ListTile(
+                leading: const CircleAvatar(
+                  backgroundColor: Color(0xFF006A4E),
+                  child: Icon(
+                    Icons.person,
+                    color: Colors.white,
+                  ),
+                ),
                 title: Text(
                   widget.indigena.nome,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 subtitle: Text(
-                  'CNS: ${widget.indigena.cns} | Aldeia: ${widget.indigena.aldeiaAtual}\nFaixa Etária: ${widget.indigena.faixaEtaria}',
+                  'CNS: ${widget.indigena.cns}\n'
+                  'Aldeia: ${widget.indigena.aldeiaAtual}\n'
+                  'Faixa Etária: ${widget.indigena.faixaEtaria}',
                 ),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 24),
             const Text(
               'Vacinas Pendentes',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.orange),
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Colors.orange,
+              ),
             ),
             const SizedBox(height: 8),
-            widget.indigena.vacinasPendentes.isEmpty
-                ? const Text('Nenhuma vacina pendente no momento.',
-                    style: TextStyle(color: Colors.grey))
-                : Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: widget.indigena.vacinasPendentes
-                        .map((v) => ActionChip(
-                              avatar: const Icon(Icons.add, size: 16, color: Colors.orange),
-                              label: Text(v),
-                              backgroundColor: Colors.orange.shade50,
-                              onPressed: () => _abrirModalAplicacao(vacinaSugerida: v),
-                            ))
-                        .toList(),
+            if (vacinasPendentes.isEmpty)
+              const Card(
+                child: Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.check_circle,
+                        color: Colors.green,
+                      ),
+                      SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Nenhuma vacina pendente no momento.',
+                        ),
+                      ),
+                    ],
                   ),
+                ),
+              )
+            else
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: vacinasPendentes.map((vacina) {
+                  return ActionChip(
+                    avatar: const Icon(
+                      Icons.add,
+                      size: 16,
+                      color: Colors.orange,
+                    ),
+                    label: Text(vacina),
+                    backgroundColor: Colors.orange.shade50,
+                    onPressed: () {
+                      _abrirModalAplicacao(
+                        vacinaSugerida: vacina,
+                      );
+                    },
+                  );
+                }).toList(),
+              ),
             const SizedBox(height: 24),
             const Text(
               'Vacinas Aplicadas',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF006A4E)),
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF006A4E),
+              ),
             ),
             const SizedBox(height: 8),
-            widget.indigena.vacinasTomadas.isEmpty
-                ? const Text('Nenhuma vacina registrada para este indígena.')
-                : ListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: widget.indigena.vacinasTomadas.length,
-                    itemBuilder: (context, index) {
-                      final vacina = widget.indigena.vacinasTomadas[index];
-                      final dataStr =
-                          '${vacina.dataAplicacao.day.toString().padLeft(2, '0')}/${vacina.dataAplicacao.month.toString().padLeft(2, '0')}/${vacina.dataAplicacao.year}';
-                      return Card(
-                        child: ListTile(
-                          leading: const CircleAvatar(
-                            backgroundColor: Color(0xFF006A4E),
-                            child: Icon(Icons.check, color: Colors.white),
-                          ),
-                          title: Text('${vacina.nome} - ${vacina.dose}'),
-                          subtitle: Text(
-                            'Lote: ${vacina.lote} | Data: $dataStr\nAplicado por: ${vacina.aplicador}',
-                          ),
-                        ),
-                      );
-                    },
+            if (vacinasTomadas.isEmpty)
+              const Card(
+                child: Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text(
+                    'Nenhuma vacina registrada para este indígena.',
                   ),
+                ),
+              )
+            else
+              ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: vacinasTomadas.length,
+                itemBuilder: (context, index) {
+                  final vacina = vacinasTomadas[index];
+
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    child: ListTile(
+                      leading: const CircleAvatar(
+                        backgroundColor: Color(0xFF006A4E),
+                        child: Icon(
+                          Icons.check,
+                          color: Colors.white,
+                        ),
+                      ),
+                      title: Text(
+                        '${vacina.nome} - ${vacina.dose}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      subtitle: Text(
+                        'Lote: ${vacina.lote}\n'
+                        'Data: ${_formatarData(vacina.dataAplicacao)}\n'
+                        'Aplicado por: ${vacina.aplicador}',
+                      ),
+                    ),
+                  );
+                },
+              ),
+            const SizedBox(height: 80),
           ],
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: const Color(0xFF006A4E),
         foregroundColor: Colors.white,
-        onPressed: () => _abrirModalAplicacao(),
+        onPressed: () {
+          _abrirModalAplicacao();
+        },
         icon: const Icon(Icons.vaccines),
         label: const Text('Aplicar Vacina'),
       ),

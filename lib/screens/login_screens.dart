@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../models/agente_funai.dart';
 import 'home_screen.dart';
 
@@ -10,8 +11,11 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _matriculaController = TextEditingController(text: 'FUNAI-8842');
-  final _senhaController = TextEditingController(text: '123456');
+  final TextEditingController _matriculaController =
+      TextEditingController(text: 'FUNAI-8842');
+
+  final TextEditingController _senhaController =
+      TextEditingController(text: '123456');
 
   @override
   void dispose() {
@@ -21,22 +25,29 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _fazerLogin() {
-    if (_matriculaController.text.isNotEmpty && _senhaController.text.isNotEmpty) {
-      final agente = AgenteFunai(
-        matricula: _matriculaController.text,
+    final String matricula = _matriculaController.text.trim();
+    final String senha = _senhaController.text.trim();
+
+    if (matricula.isNotEmpty && senha.isNotEmpty) {
+      final AgenteFunai agente = AgenteFunai(
         nome: 'Maria Silva',
+        matricula: matricula,
         cargo: 'Agente Indigenista de Saúde',
       );
 
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (context) => HomeScreen(agente: agente),
+          builder: (context) => HomeScreen(
+            agente: agente,
+          ),
         ),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Informe a matrícula e senha')),
+        const SnackBar(
+          content: Text('Informe a matrícula e senha'),
+        ),
       );
     }
   }
@@ -66,15 +77,23 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 12),
                   const Text(
                     'Saúde Indígena App',
-                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
+                  const SizedBox(height: 4),
                   const Text(
                     'Acesso do Agente FUNAI / DSEI',
-                    style: TextStyle(color: Colors.grey),
+                    style: TextStyle(
+                      color: Colors.grey,
+                    ),
+                    textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 24),
                   TextField(
                     controller: _matriculaController,
+                    textInputAction: TextInputAction.next,
                     decoration: const InputDecoration(
                       labelText: 'Matrícula FUNAI / CPF',
                       prefixIcon: Icon(Icons.badge),
@@ -85,6 +104,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   TextField(
                     controller: _senhaController,
                     obscureText: true,
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: (_) => _fazerLogin(),
                     decoration: const InputDecoration(
                       labelText: 'Senha',
                       prefixIcon: Icon(Icons.lock),
@@ -103,7 +124,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       onPressed: _fazerLogin,
                       child: const Text(
                         'ENTRAR NO SISTEMA',
-                        style: TextStyle(fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ),

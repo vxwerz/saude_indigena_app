@@ -9,15 +9,19 @@ class AgenteFunai {
     this.cargo,
   });
 
-  Map<String, dynamic> toJson() => {
-        'nome': nome,
-        'matricula': matricula,
-        'cargo': cargo,
-      };
+  Map<String, dynamic> toJson() {
+    return {
+      'nome': nome,
+      'matricula': matricula,
+      'cargo': cargo,
+    };
+  }
 
-  factory AgenteFunai.fromJson(Map<String, dynamic> json) => AgenteFunai(
-        nome: json['nome'] as String,
-        matricula: json['matricula'] as String,
-        cargo: json['cargo'] as String?,
-      );
+  factory AgenteFunai.fromJson(Map<String, dynamic> json) {
+    return AgenteFunai(
+      nome: json['nome']?.toString() ?? '',
+      matricula: json['matricula']?.toString() ?? '',
+      cargo: json['cargo']?.toString(),
+    );
+  }
 }
