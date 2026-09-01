@@ -4,11 +4,13 @@ import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/agente_funai.dart';
 import '../models/atendimento.dart';
 import '../models/indigena.dart';
+import 'vacinas_screens.dart';
 
 class HomeScreen extends StatefulWidget {
   final AgenteFunai agente;
@@ -23,9 +25,11 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final TextEditingController _buscaController = TextEditingController();
+  final TextEditingController _buscaController =
+      TextEditingController();
 
-  StreamSubscription<List<ConnectivityResult>>? _conexaoSubscription;
+  StreamSubscription<List<ConnectivityResult>>?
+      _conexaoSubscription;
 
   final List<String> aldeias = const [
     'Todas as Aldeias',
@@ -65,6 +69,29 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // ============================================================
+  // GETTERS - VACINAS PENDENTES
+  // ============================================================
+
+  int get _totalVacinasPendentes {
+    int total = 0;
+
+    for (final indigena in indigenas) {
+      total += indigena.vacinasPendentes.length;
+    }
+
+    return total;
+  }
+
+  int get _totalIndigenasComPendencias {
+    return indigenas
+        .where(
+          (indigena) =>
+              indigena.vacinasPendentes.isNotEmpty,
+        )
+        .length;
+  }
+
+  // ============================================================
   // CARREGAMENTO DOS DADOS
   // ============================================================
 
@@ -75,7 +102,8 @@ class _HomeScreenState extends State<HomeScreen> {
     // ATENDIMENTOS
     // ------------------------------------------------------------
 
-    final String? atdJson = prefs.getString('atendimentos_locais');
+    final String? atdJson =
+        prefs.getString('atendimentos_locais');
 
     if (atdJson != null && atdJson.isNotEmpty) {
       try {
@@ -98,7 +126,9 @@ class _HomeScreenState extends State<HomeScreen> {
           }
         }
       } catch (e) {
-        debugPrint('Erro ao carregar atendimentos locais: $e');
+        debugPrint(
+          'Erro ao carregar atendimentos locais: $e',
+        );
       }
     }
 
@@ -106,7 +136,8 @@ class _HomeScreenState extends State<HomeScreen> {
     // INDÍGENAS
     // ------------------------------------------------------------
 
-    final String? indJson = prefs.getString('indigenas_locais');
+    final String? indJson =
+        prefs.getString('indigenas_locais');
 
     if (indJson != null && indJson.isNotEmpty) {
       try {
@@ -129,7 +160,9 @@ class _HomeScreenState extends State<HomeScreen> {
           }
         }
       } catch (e) {
-        debugPrint('Erro ao carregar indígenas locais: $e');
+        debugPrint(
+          'Erro ao carregar indígenas locais: $e',
+        );
       }
     } else {
       // Dados iniciais de demonstração
@@ -171,23 +204,13 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _salvarAtendimentosLocalmente() async {
     final prefs = await SharedPreferences.getInstance();
 
-    /*
-      IMPORTANTE:
-
-      NÃO usamos atendimento.toMap() aqui.
-
-      toMap() contém Timestamp, que serve para o Firebase,
-      mas não pode ser convertido pelo jsonEncode().
-
-      Para armazenamento local usamos toLocalMap(),
-      que salva dataHora como String ISO 8601.
-    */
-
-    final List<Map<String, dynamic>> dadosLocais = atendimentos
-        .map(
-          (atendimento) => atendimento.toLocalMap(),
-        )
-        .toList();
+    final List<Map<String, dynamic>> dadosLocais =
+        atendimentos
+            .map(
+              (atendimento) =>
+                  atendimento.toLocalMap(),
+            )
+            .toList();
 
     final String encoded = jsonEncode(dadosLocais);
 
@@ -220,13 +243,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _monitorarConexao() async {
     try {
-      // Verifica a conexão imediatamente ao abrir a tela.
       final List<ConnectivityResult> resultados =
           await Connectivity().checkConnectivity();
 
       _atualizarStatusConexao(resultados);
 
-      // Depois continua monitorando mudanças.
       _conexaoSubscription =
           Connectivity().onConnectivityChanged.listen(
         (List<ConnectivityResult> resultados) {
@@ -234,7 +255,9 @@ class _HomeScreenState extends State<HomeScreen> {
         },
       );
     } catch (e) {
-      debugPrint('Erro ao verificar conexão: $e');
+      debugPrint(
+        'Erro ao verificar conexão: $e',
+      );
 
       if (mounted) {
         setState(() {
@@ -275,19 +298,11 @@ class _HomeScreenState extends State<HomeScreen> {
     int sincronizados = 0;
 
     for (final atendimento in atendimentos) {
-      // Não envia novamente o que já foi sincronizado.
       if (atendimento.sincronizado) {
         continue;
       }
 
       try {
-        /*
-          Aqui SIM usamos toMap().
-
-          O toMap() foi feito para o Firebase e contém
-          Timestamp.fromDate(dataHora).
-        */
-
         await firestore
             .collection('atendimentos')
             .doc(atendimento.id)
@@ -296,7 +311,6 @@ class _HomeScreenState extends State<HomeScreen> {
             );
 
         atendimento.sincronizado = true;
-
         sincronizados++;
       } catch (e) {
         debugPrint(
@@ -314,7 +328,8 @@ class _HomeScreenState extends State<HomeScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            '$sincronizados atendimento(s) sincronizado(s) com a nuvem.',
+            '$sincronizados atendimento(s) '
+            'sincronizado(s) com a nuvem.',
           ),
           backgroundColor: Colors.green,
         ),
@@ -332,7 +347,9 @@ class _HomeScreenState extends State<HomeScreen> {
     String observacao,
   ) async {
     final novoAtendimento = Atendimento(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      id: DateTime.now()
+          .millisecondsSinceEpoch
+          .toString(),
       indigenaId: indigena.id,
       nomeIndigena: indigena.nome,
       cnsIndigena: indigena.cns,
@@ -354,13 +371,6 @@ class _HomeScreenState extends State<HomeScreen> {
       atendimentos.add(novoAtendimento);
     });
 
-    /*
-      Aqui usamos toLocalMap() através de
-      _salvarAtendimentosLocalmente().
-
-      Portanto NÃO haverá mais erro de Timestamp.
-    */
-
     await _salvarAtendimentosLocalmente();
 
     // ------------------------------------------------------------
@@ -375,10 +385,8 @@ class _HomeScreenState extends State<HomeScreen> {
             novoAtendimento.toMap(),
           );
 
-      // Se chegou aqui, Firebase recebeu o atendimento.
       novoAtendimento.sincronizado = true;
 
-      // Salva novamente localmente marcando como sincronizado.
       await _salvarAtendimentosLocalmente();
 
       if (!mounted) return;
@@ -386,22 +394,13 @@ class _HomeScreenState extends State<HomeScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Atendimento registrado e sincronizado com a nuvem!',
+            'Atendimento registrado e '
+            'sincronizado com a nuvem!',
           ),
           backgroundColor: Colors.green,
         ),
       );
     } catch (e) {
-      /*
-        IMPORTANTE:
-
-        Mesmo que o Firebase dê erro, o atendimento
-        continua salvo no celular.
-
-        Como sincronizado continua false,
-        ele poderá ser enviado posteriormente.
-      */
-
       debugPrint(
         'Atendimento salvo localmente. '
         'Erro Firebase: $e',
@@ -422,6 +421,137 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // ============================================================
+  // RELATÓRIO - GERAR TEXTO
+  // ============================================================
+
+  String _gerarRelatorioTexto() {
+    final atdMes = atendimentos.where((atendimento) {
+      return atendimento.dataHora.year ==
+              mesRelatorio.year &&
+          atendimento.dataHora.month ==
+              mesRelatorio.month;
+    }).toList();
+
+    final meusAtdMes = atdMes.where((atendimento) {
+      return atendimento.agenteMatricula ==
+          widget.agente.matricula;
+    }).toList();
+
+    final Map<String, int> faixas = {
+      '0 a 4 anos': 0,
+      '5 a 9 anos': 0,
+      '10 a 19 anos': 0,
+      '20 a 29 anos': 0,
+      '30 a 59 anos': 0,
+      '60+': 0,
+    };
+
+    for (final atendimento in atdMes) {
+      if (faixas.containsKey(
+        atendimento.faixaEtaria,
+      )) {
+        faixas[atendimento.faixaEtaria] =
+            faixas[atendimento.faixaEtaria]! + 1;
+      }
+    }
+
+    final String mesNome =
+        _getMesNome(mesRelatorio.month);
+
+    final buffer = StringBuffer();
+
+    buffer.writeln(
+      'RELATÓRIO MENSAL - SAÚDE INDÍGENA',
+    );
+    buffer.writeln(
+      '=================================',
+    );
+    buffer.writeln(
+      'Mês: $mesNome / ${mesRelatorio.year}',
+    );
+    buffer.writeln(
+      'Agente: ${widget.agente.nome}',
+    );
+    buffer.writeln(
+      'Cargo: ${widget.agente.cargo ?? 'Agente FUNAI'}',
+    );
+
+    buffer.writeln();
+
+    buffer.writeln('ATENDIMENTOS');
+    buffer.writeln('------------');
+    buffer.writeln(
+      'Meus atendimentos: ${meusAtdMes.length}',
+    );
+    buffer.writeln(
+      'Total geral: ${atdMes.length}',
+    );
+
+    buffer.writeln();
+
+    buffer.writeln(
+      'ATENDIMENTOS POR FAIXA ETÁRIA',
+    );
+    buffer.writeln(
+      '-----------------------------',
+    );
+
+    for (final entry in faixas.entries) {
+      buffer.writeln(
+        '${entry.key}: ${entry.value}',
+      );
+    }
+
+    buffer.writeln();
+
+    buffer.writeln('VACINAÇÃO');
+    buffer.writeln('---------');
+
+    buffer.writeln(
+      'Indígenas com vacinas pendentes: '
+      '$_totalIndigenasComPendencias',
+    );
+
+    buffer.writeln(
+      'Total de vacinas pendentes: '
+      '$_totalVacinasPendentes',
+    );
+
+    buffer.writeln();
+
+    buffer.writeln(
+      'Relatório gerado pelo aplicativo '
+      'Saúde Indígena.',
+    );
+
+    return buffer.toString();
+  }
+
+  // ============================================================
+  // COMPARTILHAR RELATÓRIO
+  // ============================================================
+
+  Future<void> _compartilharRelatorio() async {
+    await Clipboard.setData(
+      ClipboardData(
+        text: _gerarRelatorioTexto(),
+      ),
+    );
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Relatório copiado. Você pode colar e '
+          'compartilhar onde quiser.',
+        ),
+        backgroundColor: Colors.green,
+      ),
+    );
+  }
+
+  // ============================================================
   // BUILD
   // ============================================================
 
@@ -431,10 +561,12 @@ class _HomeScreenState extends State<HomeScreen> {
       length: 2,
       child: Scaffold(
         appBar: AppBar(
-          backgroundColor: const Color(0xFF006A4E),
+          backgroundColor:
+              const Color(0xFF006A4E),
           foregroundColor: Colors.white,
           title: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment:
+                CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
@@ -470,10 +602,13 @@ class _HomeScreenState extends State<HomeScreen> {
           bottom: const TabBar(
             indicatorColor: Colors.white,
             labelColor: Colors.white,
-            unselectedLabelColor: Colors.white70,
+            unselectedLabelColor:
+                Colors.white70,
             tabs: [
               Tab(
-                icon: Icon(Icons.medical_services),
+                icon: Icon(
+                  Icons.medical_services,
+                ),
                 text: 'Atendimentos',
               ),
               Tab(
@@ -498,17 +633,24 @@ class _HomeScreenState extends State<HomeScreen> {
   // ============================================================
 
   Widget _buildAbaAtendimentos() {
-    final filtrados = indigenas.where((indigena) {
+    final filtrados =
+        indigenas.where((indigena) {
       final bool matchAldeia =
-          aldeiaSelecionada == 'Todas as Aldeias' ||
-          indigena.aldeiaAtual == aldeiaSelecionada;
+          aldeiaSelecionada ==
+                  'Todas as Aldeias' ||
+              indigena.aldeiaAtual ==
+                  aldeiaSelecionada;
 
       final String queryLower =
           buscaQuery.toLowerCase().trim();
 
       final bool matchQuery =
-          indigena.nome.toLowerCase().contains(queryLower) ||
-          indigena.cns.contains(buscaQuery.trim());
+          indigena.nome
+                  .toLowerCase()
+                  .contains(queryLower) ||
+              indigena.cns.contains(
+                buscaQuery.trim(),
+              );
 
       return matchAldeia && matchQuery;
     }).toList();
@@ -522,11 +664,13 @@ class _HomeScreenState extends State<HomeScreen> {
             decoration: const InputDecoration(
               labelText: 'Selecione a Aldeia',
               border: OutlineInputBorder(),
-              prefixIcon: Icon(Icons.home),
+              prefixIcon:
+                  Icon(Icons.home),
             ),
             items: aldeias
                 .map(
-                  (aldeia) => DropdownMenuItem<String>(
+                  (aldeia) =>
+                      DropdownMenuItem<String>(
                     value: aldeia,
                     child: Text(aldeia),
                   ),
@@ -544,8 +688,10 @@ class _HomeScreenState extends State<HomeScreen> {
           TextField(
             controller: _buscaController,
             decoration: const InputDecoration(
-              labelText: 'Buscar por Nome ou CNS',
-              prefixIcon: Icon(Icons.search),
+              labelText:
+                  'Buscar por Nome ou CNS',
+              prefixIcon:
+                  Icon(Icons.search),
               border: OutlineInputBorder(),
             ),
             onChanged: (value) {
@@ -559,32 +705,43 @@ class _HomeScreenState extends State<HomeScreen> {
             child: filtrados.isEmpty
                 ? const Center(
                     child: Text(
-                      'Nenhum indígena encontrado nesta aldeia.',
+                      'Nenhum indígena encontrado '
+                      'nesta aldeia.',
                     ),
                   )
                 : ListView.builder(
                     itemCount: filtrados.length,
-                    itemBuilder: (context, index) {
-                      final item = filtrados[index];
+                    itemBuilder:
+                        (context, index) {
+                      final item =
+                          filtrados[index];
 
                       return Card(
                         elevation: 2,
-                        margin: const EdgeInsets.symmetric(
+                        margin:
+                            const EdgeInsets
+                                .symmetric(
                           vertical: 6,
                         ),
                         child: ListTile(
                           contentPadding:
-                              const EdgeInsets.all(12),
+                              const EdgeInsets.all(
+                            12,
+                          ),
                           title: Text(
                             item.nome,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
+                            style:
+                                const TextStyle(
+                              fontWeight:
+                                  FontWeight.bold,
                               fontSize: 16,
                             ),
                           ),
                           subtitle: Padding(
                             padding:
-                                const EdgeInsets.only(top: 6),
+                                const EdgeInsets.only(
+                              top: 6,
+                            ),
                             child: Text(
                               'Aldeia: ${item.aldeiaAtual}\n'
                               'CNS: ${item.cns}\n'
@@ -596,34 +753,47 @@ class _HomeScreenState extends State<HomeScreen> {
                             spacing: 8,
                             children: [
                               OutlinedButton.icon(
-                                icon: const Icon(
+                                icon:
+                                    const Icon(
                                   Icons.vaccines,
-                                  color: Colors.teal,
+                                  color:
+                                      Colors.teal,
                                   size: 18,
                                 ),
-                                label: const Text(
+                                label:
+                                    const Text(
                                   'Vacinas',
                                 ),
                                 onPressed: () {
-                                  _abrirCartaoVacina(item);
+                                  _abrirCartaoVacina(
+                                    item,
+                                  );
                                 },
                               ),
                               ElevatedButton.icon(
                                 style:
-                                    ElevatedButton.styleFrom(
+                                    ElevatedButton
+                                        .styleFrom(
                                   backgroundColor:
-                                      const Color(0xFF006A4E),
-                                  foregroundColor: Colors.white,
+                                      const Color(
+                                    0xFF006A4E,
+                                  ),
+                                  foregroundColor:
+                                      Colors.white,
                                 ),
-                                icon: const Icon(
+                                icon:
+                                    const Icon(
                                   Icons.add,
                                   size: 18,
                                 ),
-                                label: const Text(
+                                label:
+                                    const Text(
                                   'Atender',
                                 ),
                                 onPressed: () {
-                                  _abrirModalAtendimento(item);
+                                  _abrirModalAtendimento(
+                                    item,
+                                  );
                                 },
                               ),
                             ],
@@ -639,110 +809,34 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // ============================================================
-  // CARTÃO DE VACINAS
+  // TELA DE VACINAS
   // ============================================================
 
-  void _abrirCartaoVacina(Indigena indigena) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(20),
+  Future<void> _abrirCartaoVacina(
+    Indigena indigena,
+  ) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) =>
+            VacinasScreen(
+          agente: widget.agente,
+          indigena: indigena,
+          onVacinaAplicada:
+              (indigenaAtualizado) async {
+            await _salvarIndigenasLocalmente();
+
+            if (!mounted) return;
+
+            setState(() {});
+          },
         ),
       ),
-      builder: (ctx) {
-        return SizedBox(
-          height: MediaQuery.of(ctx).size.height * 0.85,
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Cartão de Vacinas: ${indigena.nome}',
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.close),
-                      onPressed: () {
-                        Navigator.pop(ctx);
-                      },
-                    ),
-                  ],
-                ),
-                const Divider(),
-                const Text(
-                  'Vacinas Aplicadas:',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.green,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Expanded(
-                  child: indigena.vacinasTomadas.isEmpty
-                      ? const Center(
-                          child: Text(
-                            'Nenhuma vacina registrada ainda.',
-                          ),
-                        )
-                      : ListView.builder(
-                          itemCount:
-                              indigena.vacinasTomadas.length,
-                          itemBuilder:
-                              (context, index) {
-                            final vacina = indigena
-                                .vacinasTomadas[index];
-
-                            final String dia = vacina
-                                .dataAplicacao.day
-                                .toString()
-                                .padLeft(2, '0');
-
-                            final String mes = vacina
-                                .dataAplicacao.month
-                                .toString()
-                                .padLeft(2, '0');
-
-                            final int ano =
-                                vacina.dataAplicacao.year;
-
-                            return Card(
-                              color: Colors.green.shade50,
-                              child: ListTile(
-                                leading: const Icon(
-                                  Icons.check_circle,
-                                  color: Colors.green,
-                                ),
-                                title: Text(
-                                  '${vacina.nome} - ${vacina.dose}',
-                                ),
-                                subtitle: Text(
-                                  'Lote: ${vacina.lote}\n'
-                                  'Data: $dia/$mes/$ano\n'
-                                  'Aplicador: ${vacina.aplicador}',
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
     );
+
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   // ============================================================
@@ -750,17 +844,21 @@ class _HomeScreenState extends State<HomeScreen> {
   // ============================================================
 
   Widget _buildAbaRelatorios() {
-    final atdMes = atendimentos.where((atendimento) {
-      return atendimento.dataHora.year ==
-              mesRelatorio.year &&
-          atendimento.dataHora.month ==
-              mesRelatorio.month;
-    }).toList();
+    final atdMes = atendimentos.where(
+      (atendimento) {
+        return atendimento.dataHora.year ==
+                mesRelatorio.year &&
+            atendimento.dataHora.month ==
+                mesRelatorio.month;
+      },
+    ).toList();
 
-    final meusAtdMes = atdMes.where((atendimento) {
-      return atendimento.agenteMatricula ==
-          widget.agente.matricula;
-    }).toList();
+    final meusAtdMes = atdMes.where(
+      (atendimento) {
+        return atendimento.agenteMatricula ==
+            widget.agente.matricula;
+      },
+    ).toList();
 
     final Map<String, int> faixas = {
       '0 a 4 anos': 0,
@@ -795,10 +893,12 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               Expanded(
                 child: Text(
-                  'Mês: $mesNome / ${mesRelatorio.year}',
+                  'Mês: $mesNome / '
+                  '${mesRelatorio.year}',
                   style: const TextStyle(
                     fontSize: 16,
-                    fontWeight: FontWeight.bold,
+                    fontWeight:
+                        FontWeight.bold,
                   ),
                 ),
               ),
@@ -806,18 +906,21 @@ class _HomeScreenState extends State<HomeScreen> {
                 icon: const Icon(
                   Icons.calendar_month,
                 ),
-                label: const Text(
-                  'Alterar Mês',
-                ),
+                label:
+                    const Text('Alterar Mês'),
                 onPressed: () async {
                   final picked =
                       await showDatePicker(
                     context: context,
-                    initialDate: mesRelatorio,
-                    firstDate: DateTime(2020),
-                    lastDate: DateTime.now(),
+                    initialDate:
+                        mesRelatorio,
+                    firstDate:
+                        DateTime(2020),
+                    lastDate:
+                        DateTime.now(),
                     helpText:
-                        'Selecione qualquer dia do mês desejado',
+                        'Selecione qualquer dia '
+                        'do mês desejado',
                   );
 
                   if (picked != null) {
@@ -829,27 +932,35 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ],
           ),
+
           const SizedBox(height: 16),
+
           Row(
             children: [
               Expanded(
                 child: Card(
-                  color: Colors.teal.shade50,
+                  color:
+                      Colors.teal.shade50,
                   child: Padding(
                     padding:
-                        const EdgeInsets.all(12),
+                        const EdgeInsets.all(
+                      12,
+                    ),
                     child: Column(
                       children: [
                         const Text(
                           'Meus Atendimentos',
                           style: TextStyle(
                             fontSize: 13,
-                            fontWeight: FontWeight.bold,
+                            fontWeight:
+                                FontWeight.bold,
                           ),
                           textAlign:
                               TextAlign.center,
                         ),
-                        const SizedBox(height: 6),
+                        const SizedBox(
+                          height: 6,
+                        ),
                         Text(
                           '${meusAtdMes.length}',
                           style:
@@ -857,12 +968,14 @@ class _HomeScreenState extends State<HomeScreen> {
                             fontSize: 22,
                             fontWeight:
                                 FontWeight.bold,
-                            color:
-                                Color(0xFF006A4E),
+                            color: Color(
+                              0xFF006A4E,
+                            ),
                           ),
                         ),
                         Text(
-                          'Agente: ${widget.agente.nome}',
+                          'Agente: '
+                          '${widget.agente.nome}',
                           style:
                               const TextStyle(
                             fontSize: 10,
@@ -870,20 +983,26 @@ class _HomeScreenState extends State<HomeScreen> {
                                 Colors.black54,
                           ),
                           overflow:
-                              TextOverflow.ellipsis,
+                              TextOverflow
+                                  .ellipsis,
                         ),
                       ],
                     ),
                   ),
                 ),
               ),
+
               const SizedBox(width: 8),
+
               Expanded(
                 child: Card(
-                  color: Colors.blue.shade50,
+                  color:
+                      Colors.blue.shade50,
                   child: Padding(
                     padding:
-                        const EdgeInsets.all(12),
+                        const EdgeInsets.all(
+                      12,
+                    ),
                     child: Column(
                       children: [
                         const Text(
@@ -896,7 +1015,9 @@ class _HomeScreenState extends State<HomeScreen> {
                           textAlign:
                               TextAlign.center,
                         ),
-                        const SizedBox(height: 6),
+                        const SizedBox(
+                          height: 6,
+                        ),
                         Text(
                           '${atdMes.length}',
                           style:
@@ -924,15 +1045,128 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ],
           ),
+
+          const SizedBox(height: 16),
+
+          // ======================================================
+          // VACINAS PENDENTES
+          // ======================================================
+
+          Row(
+            children: [
+              Expanded(
+                child: Card(
+                  color:
+                      Colors.orange.shade50,
+                  child: Padding(
+                    padding:
+                        const EdgeInsets.all(
+                      12,
+                    ),
+                    child: Column(
+                      children: [
+                        const Icon(
+                          Icons.vaccines,
+                          color:
+                              Colors.orange,
+                        ),
+                        const SizedBox(
+                          height: 6,
+                        ),
+                        const Text(
+                          'Vacinas Pendentes',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight:
+                                FontWeight.bold,
+                          ),
+                          textAlign:
+                              TextAlign.center,
+                        ),
+                        const SizedBox(
+                          height: 6,
+                        ),
+                        Text(
+                          '$_totalVacinasPendentes',
+                          style:
+                              const TextStyle(
+                            fontSize: 22,
+                            fontWeight:
+                                FontWeight.bold,
+                            color:
+                                Colors.orange,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
+              const SizedBox(width: 8),
+
+              Expanded(
+                child: Card(
+                  color:
+                      Colors.red.shade50,
+                  child: Padding(
+                    padding:
+                        const EdgeInsets.all(
+                      12,
+                    ),
+                    child: Column(
+                      children: [
+                        const Icon(
+                          Icons.people,
+                          color: Colors.red,
+                        ),
+                        const SizedBox(
+                          height: 6,
+                        ),
+                        const Text(
+                          'Indígenas com Pendências',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight:
+                                FontWeight.bold,
+                          ),
+                          textAlign:
+                              TextAlign.center,
+                        ),
+                        const SizedBox(
+                          height: 6,
+                        ),
+                        Text(
+                          '$_totalIndigenasComPendencias',
+                          style:
+                              const TextStyle(
+                            fontSize: 22,
+                            fontWeight:
+                                FontWeight.bold,
+                            color: Colors.red,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+
           const SizedBox(height: 20),
+
           const Text(
             'Atendimentos por Faixa Etária (Mês):',
             style: TextStyle(
               fontSize: 15,
-              fontWeight: FontWeight.bold,
+              fontWeight:
+                  FontWeight.bold,
             ),
           ),
+
           const SizedBox(height: 8),
+
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -940,7 +1174,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 .map(
                   (entry) => Chip(
                     label: Text(
-                      '${entry.key}: ${entry.value}',
+                      '${entry.key}: '
+                      '${entry.value}',
                     ),
                     backgroundColor:
                         Colors.teal.shade100,
@@ -948,6 +1183,45 @@ class _HomeScreenState extends State<HomeScreen> {
                 )
                 .toList(),
           ),
+
+          const SizedBox(height: 24),
+
+          // ======================================================
+          // BOTÃO COPIAR RELATÓRIO
+          // ======================================================
+
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              style:
+                  ElevatedButton.styleFrom(
+                backgroundColor:
+                    const Color(
+                  0xFF006A4E,
+                ),
+                foregroundColor:
+                    Colors.white,
+                padding:
+                    const EdgeInsets.symmetric(
+                  vertical: 14,
+                ),
+              ),
+              icon: const Icon(
+                Icons.content_copy,
+              ),
+              label: const Text(
+                'Copiar Relatório',
+                style: TextStyle(
+                  fontWeight:
+                      FontWeight.bold,
+                ),
+              ),
+              onPressed:
+                  _compartilharRelatorio,
+            ),
+          ),
+
+          const SizedBox(height: 20),
         ],
       ),
     );
@@ -1033,7 +1307,8 @@ class _ModalAtendimentoDialog
 
 class _ModalAtendimentoDialogState
     extends State<_ModalAtendimentoDialog> {
-  final TextEditingController _obsController =
+  final TextEditingController
+      _obsController =
       TextEditingController();
 
   String _tipoSelecionado =
@@ -1041,7 +1316,8 @@ class _ModalAtendimentoDialogState
 
   bool _carregando = false;
 
-  final List<String> _tiposAtendimento = const [
+  final List<String> _tiposAtendimento =
+      const [
     'Consulta Médica',
     'Odontologia',
     'Enfermagem',
@@ -1073,7 +1349,8 @@ class _ModalAtendimentoDialogState
     } catch (e) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
         SnackBar(
           content: Text(
             'Erro ao registrar atendimento: $e',
@@ -1094,32 +1371,41 @@ class _ModalAtendimentoDialogState
   Widget build(BuildContext context) {
     return AlertDialog(
       title: Text(
-        'Atender: ${widget.indigena.nome}',
+        'Atender: '
+        '${widget.indigena.nome}',
       ),
       content: SingleChildScrollView(
         child: Column(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisSize:
+              MainAxisSize.min,
           children: [
             DropdownButtonFormField<String>(
-              initialValue: _tipoSelecionado,
-              decoration: const InputDecoration(
+              initialValue:
+                  _tipoSelecionado,
+              decoration:
+                  const InputDecoration(
                 labelText:
                     'Tipo de Atendimento',
-                border: OutlineInputBorder(),
+                border:
+                    OutlineInputBorder(),
               ),
-              items: _tiposAtendimento
-                  .map(
-                    (tipo) =>
-                        DropdownMenuItem<String>(
-                      value: tipo,
-                      child: Text(tipo),
-                    ),
-                  )
-                  .toList(),
+              items:
+                  _tiposAtendimento
+                      .map(
+                        (tipo) =>
+                            DropdownMenuItem<
+                                String>(
+                          value: tipo,
+                          child: Text(tipo),
+                        ),
+                      )
+                      .toList(),
               onChanged: _carregando
                   ? null
                   : (value) {
-                      if (value == null) return;
+                      if (value == null) {
+                        return;
+                      }
 
                       setState(() {
                         _tipoSelecionado =
@@ -1127,15 +1413,19 @@ class _ModalAtendimentoDialogState
                       });
                     },
             ),
+
             const SizedBox(height: 12),
+
             TextField(
-              controller: _obsController,
+              controller:
+                  _obsController,
               enabled: !_carregando,
               decoration:
                   const InputDecoration(
                 labelText:
                     'Observações / Diagnóstico',
-                border: OutlineInputBorder(),
+                border:
+                    OutlineInputBorder(),
               ),
               maxLines: 3,
             ),
@@ -1149,13 +1439,17 @@ class _ModalAtendimentoDialogState
               : () {
                   Navigator.pop(context);
                 },
-          child: const Text('Cancelar'),
+          child:
+              const Text('Cancelar'),
         ),
+
         ElevatedButton(
-          style: ElevatedButton.styleFrom(
+          style:
+              ElevatedButton.styleFrom(
             backgroundColor:
                 const Color(0xFF006A4E),
-            foregroundColor: Colors.white,
+            foregroundColor:
+                Colors.white,
           ),
           onPressed: _carregando
               ? null

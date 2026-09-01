@@ -18,12 +18,15 @@ class VacinaAplicada {
       'nome': nome,
       'dose': dose,
       'lote': lote,
-      'dataAplicacao': dataAplicacao.toIso8601String(),
+      'dataAplicacao':
+          dataAplicacao.toIso8601String(),
       'aplicador': aplicador,
     };
   }
 
-  factory VacinaAplicada.fromJson(Map<String, dynamic> json) {
+  factory VacinaAplicada.fromJson(
+    Map<String, dynamic> json,
+  ) {
     DateTime data;
 
     try {
@@ -39,7 +42,9 @@ class VacinaAplicada {
       dose: json['dose']?.toString() ?? '',
       lote: json['lote']?.toString() ?? '',
       dataAplicacao: data,
-      aplicador: json['aplicador']?.toString() ?? 'Agente FUNAI',
+      aplicador:
+          json['aplicador']?.toString() ??
+              'Agente FUNAI',
     );
   }
 }
@@ -50,6 +55,7 @@ class Indigena {
   final String nome;
   final String aldeiaAtual;
   final DateTime dataNascimento;
+
   List<VacinaAplicada> vacinasTomadas;
 
   Indigena({
@@ -59,7 +65,12 @@ class Indigena {
     required this.aldeiaAtual,
     required this.dataNascimento,
     List<VacinaAplicada>? vacinasTomadas,
-  }) : vacinasTomadas = vacinasTomadas ?? [];
+  }) : vacinasTomadas =
+            vacinasTomadas ?? [];
+
+  // ============================================================
+  // IDADE
+  // ============================================================
 
   int get idade {
     final hoje = DateTime.now();
@@ -67,14 +78,23 @@ class Indigena {
     int idadeCalculada =
         hoje.year - dataNascimento.year;
 
-    if (hoje.month < dataNascimento.month ||
-        (hoje.month == dataNascimento.month &&
-            hoje.day < dataNascimento.day)) {
+    if (hoje.month <
+            dataNascimento.month ||
+        (hoje.month ==
+                dataNascimento.month &&
+            hoje.day <
+                dataNascimento.day)) {
       idadeCalculada--;
     }
 
-    return idadeCalculada < 0 ? 0 : idadeCalculada;
+    return idadeCalculada < 0
+        ? 0
+        : idadeCalculada;
   }
+
+  // ============================================================
+  // FAIXA ETÁRIA
+  // ============================================================
 
   String get faixaEtaria {
     final idadeAtual = idade;
@@ -102,6 +122,10 @@ class Indigena {
     return '60+';
   }
 
+  // ============================================================
+  // VACINAS PENDENTES
+  // ============================================================
+
   List<String> get vacinasPendentes {
     const todas = [
       'BCG',
@@ -114,14 +138,26 @@ class Indigena {
       'Influenza',
     ];
 
-    final tomadasNomes = vacinasTomadas
-        .map((vacina) => vacina.nome)
-        .toSet();
+    final tomadasNomes =
+        vacinasTomadas
+            .map(
+              (vacina) => vacina.nome,
+            )
+            .toSet();
 
     return todas
-        .where((vacina) => !tomadasNomes.contains(vacina))
+        .where(
+          (vacina) =>
+              !tomadasNomes.contains(
+            vacina,
+          ),
+        )
         .toList();
   }
+
+  // ============================================================
+  // SERIALIZAÇÃO
+  // ============================================================
 
   Map<String, dynamic> toJson() {
     return {
@@ -131,11 +167,19 @@ class Indigena {
       'aldeiaAtual': aldeiaAtual,
       'dataNascimento':
           dataNascimento.toIso8601String(),
-      'vacinasTomadas': vacinasTomadas
-          .map((vacina) => vacina.toJson())
-          .toList(),
+      'vacinasTomadas':
+          vacinasTomadas
+              .map(
+                (vacina) =>
+                    vacina.toJson(),
+              )
+              .toList(),
     };
   }
+
+  // ============================================================
+  // DESSERIALIZAÇÃO
+  // ============================================================
 
   factory Indigena.fromJson(
     Map<String, dynamic> json,
@@ -144,22 +188,29 @@ class Indigena {
 
     try {
       nascimento = DateTime.parse(
-        json['dataNascimento']?.toString() ?? '',
+        json['dataNascimento']
+                ?.toString() ??
+            '',
       );
     } catch (_) {
-      nascimento = DateTime(2000, 1, 1);
+      nascimento =
+          DateTime(2000, 1, 1);
     }
 
-    final List<VacinaAplicada> vacinas = [];
+    final List<VacinaAplicada>
+        vacinas = [];
 
-    final vacinasJson = json['vacinasTomadas'];
+    final vacinasJson =
+        json['vacinasTomadas'];
 
     if (vacinasJson is List) {
       for (final item in vacinasJson) {
         if (item is Map) {
           vacinas.add(
             VacinaAplicada.fromJson(
-              Map<String, dynamic>.from(item),
+              Map<String, dynamic>.from(
+                item,
+              ),
             ),
           );
         }
@@ -169,9 +220,12 @@ class Indigena {
     return Indigena(
       id: json['id']?.toString() ?? '',
       cns: json['cns']?.toString() ?? '',
-      nome: json['nome']?.toString() ?? '',
+      nome:
+          json['nome']?.toString() ?? '',
       aldeiaAtual:
-          json['aldeiaAtual']?.toString() ?? '',
+          json['aldeiaAtual']
+                  ?.toString() ??
+              '',
       dataNascimento: nascimento,
       vacinasTomadas: vacinas,
     );
